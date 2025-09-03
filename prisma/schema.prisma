@@ -3,6 +3,49 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb" // later you can change to "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  email       String   @unique
+  role        String
+  status      String
+  lastLogin   DateTime?
+  department  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TNA {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber    String
+  buyer          String
+  style          String
+  totalTasks     Int
+  completedTasks Int
+  percentage     Int
+  status         String
+  dueDate        DateTime
+  currentStage   String
+  merchandiser   String
+  priority       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  timestamp   DateTime @default(now())
+  user        String
+  userRole    String
+  action      String
+  resource    String
+  resourceId  String
+  description String
+  ipAddress   String
+  userAgent   String
+  status      String
 }

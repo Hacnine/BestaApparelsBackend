@@ -13,13 +13,16 @@ import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 
 import { PrismaClient } from "@prisma/client";
-import { connectRedisClient } from "./config/redisClient.js"; // your helper to connect Redis
+import { connectRedisClient } from "./config/redisClient.js"; 
 import logger from "./utils/logger.js";
 import { initialSocketServer } from "./sockets/socketindex.js";
 
 // Routes
-// import userRouter from "./routes/userRoute.js";
-// ... import other routes similarly
+import userRouter from "./routes/userRoute.js";
+import tnaRouter from "./routes/tnaRoute.js";
+import auditRouter from "./routes/auditRoute.js";
+import dashboardRouter from "./routes/dashboardRoute.js";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,7 +44,7 @@ let io; // socket.io server instance
     app.use(helmet());
     // app.use(compression());
 
-    const originUrl = process.env.ORIGIN_URL || "http://localhost:3002";
+    const originUrl = process.env.ORIGIN_URL || "http://localhost:8080";
     app.use(cors({ origin: originUrl, credentials: true }));
 
     app.use("/images", express.static(path.join(process.cwd(), "public/images")));
@@ -79,9 +82,12 @@ let io; // socket.io server instance
       next();
     });
 
-    // Routes
-    // app.use("/user", userRouter);
-    // ... attach other routes similarly
+
+  // API Routes
+  app.use("/api/users", userRouter);
+  app.use("/api/tnas", tnaRouter);
+  app.use("/api/audit-logs", auditRouter);
+  app.use("/api/dashboard", dashboardRouter);
 
     // Health check
     app.get("/health", (_req, res) => res.status(200).send("OK"));
