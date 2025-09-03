@@ -3,7 +3,7 @@ import express from "express";
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
-import cors from "cors";99
+import cors from "cors";
 import cookieParser from "cookie-parser";
 import compression from "compression";
 import session from "express-session";
@@ -13,7 +13,7 @@ import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 
 import { PrismaClient } from "@prisma/client";
-import { connectRedisClient } from "./config/redisClient.js"; 
+import { connectRedisClient } from "./config/redisClient.js";
 import logger from "./utils/logger.js";
 import { initialSocketServer } from "./sockets/socketindex.js";
 
@@ -22,7 +22,7 @@ import userRouter from "./routes/userRoute.js";
 import tnaRouter from "./routes/tnaRoute.js";
 import auditRouter from "./routes/auditRoute.js";
 import dashboardRouter from "./routes/dashboardRoute.js";
-
+import apiRoute from "./routes/apiIndex.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,7 +47,10 @@ let io; // socket.io server instance
     const originUrl = process.env.ORIGIN_URL || "http://localhost:8080";
     app.use(cors({ origin: originUrl, credentials: true }));
 
-    app.use("/images", express.static(path.join(process.cwd(), "public/images")));
+    app.use(
+      "/images",
+      express.static(path.join(process.cwd(), "public/images"))
+    );
     app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
     app.use(express.json({ limit: "10mb" }));
@@ -82,12 +85,8 @@ let io; // socket.io server instance
       next();
     });
 
-
-  // API Routes
-  app.use("/api/users", userRouter);
-  app.use("/api/tnas", tnaRouter);
-  app.use("/api/audit-logs", auditRouter);
-  app.use("/api/dashboard", dashboardRouter);
+    // API Routes
+    app.use("/", apiRoute);
 
     // Health check
     app.get("/health", (_req, res) => res.status(200).send("OK"));
@@ -100,9 +99,10 @@ let io; // socket.io server instance
     // Global error handler
     app.use((err, req, res, _next) => {
       logger.error({ err, url: req.originalUrl }, "Unhandled error");
-      res.status(err.status || 500).json({ success: false, message: err.message || "Server Error" });
+      res
+        .status(err.status || 500)
+        .json({ success: false, message: err.message || "Server Error" });
     });
-
 
     // Start server
     server.listen(port, () => logger.info(`Server running on port ${port}`));
