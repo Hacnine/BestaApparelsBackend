@@ -1,0 +1,13 @@
+model AuditLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  timestamp   DateTime @default(now())
+  user        String
+  userRole    String
+  action      String
+  resource    String
+  resourceId  String
+  description String
+  ipAddress   String
+  userAgent   String
+  status      String
+}

@@ -11,34 +11,51 @@ import { RedisStore } from "connect-redis";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
+import bcrypt from "bcryptjs";
 
 import { PrismaClient } from "@prisma/client";
 import { connectRedisClient } from "./config/redisClient.js";
 import logger from "./utils/logger.js";
 import { initialSocketServer } from "./sockets/socketindex.js";
 
-// Routes
-import userRouter from "./routes/userRoute.js";
-import tnaRouter from "./routes/tnaRoute.js";
-import auditRouter from "./routes/auditRoute.js";
-import dashboardRouter from "./routes/dashboardRoute.js";
 import apiRoute from "./routes/apiIndex.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
+// docker compose up -d
 const app = express();
-let io; // socket.io server instance
+let io;
 
 (async () => {
   try {
     const port = process.env.PORT || 3001;
-
-    // Prisma client
     const prisma = new PrismaClient();
-
-    // Connect Redis
     const redisClient = await connectRedisClient();
+
+    // Add this block to create the first user if none exists
+    const createInitialAdmin = async () => {
+      const userCount = await prisma.user.count();
+      if (userCount === 0) {
+        const hashedPassword = await bcrypt.hash("admin123", 10);
+
+        const user = await prisma.user.create({
+          data: {
+            customId: "USR001",
+            name: "Admin",
+            email: "admin@tna.com",
+            password: hashedPassword,
+            role: "admin123",
+            status: "active",
+            department: "IT",
+          },
+        });
+
+        console.log("First admin user created:", user.email);
+      }
+    };
+
+    // Call it
+    await createInitialAdmin();
 
     // Core middlewares
     app.use(helmet());

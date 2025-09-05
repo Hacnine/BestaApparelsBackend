@@ -5,27 +5,25 @@ import {
   createUser,
   updateUser,
   deleteUser,
-  toggleUserStatus
+  toggleUserStatus,
+  login,
+  logout,
+  changePassword
 } from '../controllers/userController.js';
+import { requireAuth } from '../middlewares/authMiddleware.js';
+
+
 
 const router = express.Router();
+router.post('/login', login);
 
-// Get all users (with search/filter)
+router.use(requireAuth);
+router.post('/logout', logout);
 router.get('/', getUsers);
-
-// Get user stats
 router.get('/stats', getUserStats);
-
-// Create user
 router.post('/', createUser);
-
-// Update user
 router.put('/:id', updateUser);
-
-// Delete user
 router.delete('/:id', deleteUser);
-
-// Toggle user status
 router.patch('/:id/toggle-status', toggleUserStatus);
-
+router.post('/:id/reset-password', changePassword);
 export default router;
