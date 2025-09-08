@@ -8,7 +8,8 @@ import {
   toggleUserStatus,
   login,
   logout,
-  changePassword
+  changePassword,
+  getUserInfo
 } from '../controllers/userController.js';
 import { requireAuth } from '../middlewares/authMiddleware.js';
 
@@ -16,9 +17,9 @@ import { requireAuth } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 router.post('/login', login);
-
 router.use(requireAuth);
 router.post('/logout', logout);
+router.get('/user-info', getUserInfo)
 router.get('/', getUsers);
 router.get('/stats', getUserStats);
 router.post('/', createUser);

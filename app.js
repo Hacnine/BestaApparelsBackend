@@ -44,7 +44,7 @@ let io;
             name: "Admin",
             email: "admin@tna.com",
             password: hashedPassword,
-            role: "admin123",
+            role: "admin",
             status: "active",
             department: "IT",
           },

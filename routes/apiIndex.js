@@ -9,7 +9,7 @@ import dashboardRouter from "./dashboardRoute.js";
 const apiRoute = Router();
 
 // Mount all API routes
-apiRoute.use("/users", userRouter);
+apiRoute.use("/user", userRouter);
 apiRoute.use("/tnas", tnaRouter);
 apiRoute.use("/audit-logs", auditRouter);
 apiRoute.use("/dashboard", dashboardRouter);

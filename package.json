@@ -23,7 +23,6 @@
   "dependencies": {
     "@prisma/client": "^6.15.0",
     "@socket.io/redis-adapter": "^8.3.0",
-    "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "body-parse": "^0.1.0",
     "cloudinary": "^2.7.0",
