@@ -20,19 +20,28 @@ enum Status {
   PENDING
   SUSPENDED
 }
-
 model User {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userName    String    @unique
+  password    String
+  role        Role
+  employeeId  String    @unique @db.ObjectId  // Foreign key to Employee
+  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)  // One-to-one relation
+
+  @@map("users")  // Optional: Map to collection name
+}
+
+model Employee {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   customId    String   @unique
   name        String
   email       String   @unique
-  password    String
-  role        Role
   status      Status
-  lastLogin   DateTime?
+  designation String
   department  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  user        User?    @relation  // Back-reference to User (optional, for queries)
+
+  @@map("employees")  
 }
 
 model TNA {
@@ -50,6 +59,7 @@ model TNA {
   priority       String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  @@map("tna")
 }
 
 model AuditLog {
@@ -65,3 +75,9 @@ model AuditLog {
   userAgent   String
   status      String
 }
+
+// npx prisma db pull
+// npx prisma db push
+// npx prisma generate
+// npx prisma migrate dev --name init
+// npx prisma studio

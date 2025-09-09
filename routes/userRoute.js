@@ -22,7 +22,7 @@ router.post('/logout', logout);
 router.get('/user-info', getUserInfo)
 router.get('/', getUsers);
 router.get('/stats', getUserStats);
-router.post('/', createUser);
+router.post('/create-user', createUser);
 router.put('/:id', updateUser);
 router.delete('/:id', deleteUser);
 router.patch('/:id/toggle-status', toggleUserStatus);

@@ -34,23 +34,39 @@ let io;
 
     // Add this block to create the first user if none exists
     const createInitialAdmin = async () => {
-      const userCount = await prisma.user.count();
-      if (userCount === 0) {
-        const hashedPassword = await bcrypt.hash("admin123", 10);
+      try {
+        const userCount = await prisma.user.count();
+        if (userCount === 0) {
+          // Step 1: Create an Employee for the admin
+          const employee = await prisma.employee.create({
+            data: {
+              customId: "EMP001",
+              name: "Admin",
+              email: "admin@tna.com",
+              status: "ACTIVE", // Matches Status enum
+              designation: "System Administrator",
+              department: "IT",
+            },
+          });
 
-        const user = await prisma.user.create({
-          data: {
-            customId: "USR001",
-            name: "Admin",
-            email: "admin@tna.com",
-            password: hashedPassword,
-            role: "admin",
-            status: "active",
-            department: "IT",
-          },
-        });
+          // Step 2: Create a User linked to the Employee
+          const hashedPassword = await bcrypt.hash("admin123", 10);
+          const user = await prisma.user.create({
+            data: {
+              userName: "admin",
+              password: hashedPassword,
+              role: "ADMIN", // Matches Role enum
+              employeeId: employee.id,
+            },
+          });
 
-        console.log("First admin user created:", user.email);
+          console.log("First admin user created:", employee.email);
+        }
+      } catch (error) {
+        console.error("Error creating initial admin:", error);
+        throw error;
+      } finally {
+        await prisma.$disconnect();
       }
     };
 

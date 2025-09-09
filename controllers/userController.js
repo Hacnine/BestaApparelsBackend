@@ -42,46 +42,40 @@ export async function getUserStats(req, res) {
   }
 }
 
-// Controller to create a new user (Admin only)
+
+// Function 2: Create a User linked to an existing Employee (searches by email)
 export const createUser = async (req, res) => {
   try {
-    // Check if the requesting user is an admin
-    await checkAdmin(req.user.id); // Assuming req.user contains authenticated user info (e.g., from JWT)
-
-    const { customId, name, email, password, role, status, department } =
-      req.body;
-
-    // Validate required fields
-    if (!customId || !name || !email || !password) {
-      return res
-        .status(400)
-        .json({ error: "customId, name, email, and password are required" });
-    }
-
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create the user
-    const user = await prisma.user.create({
-      data: {
-        customId,
-        name,
-        email,
-        password: hashedPassword,
-        role: role || "USER", // Default to USER if not provided
-        status: status || "PENDING", // Default to PENDING if not provided
-        department: department || "",
-      },
+    await checkAdmin(req.user.id);
+    const userData = req.body;
+    // Step 1: Search for Employee by email
+    const employee = await prisma.employee.findUnique({
+      where: { email: userData.employeeEmail }, // Use the email provided for search
     });
 
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = user;
-    return res.status(201).json(userWithoutPassword);
+    if (!employee) {
+      throw new Error(
+        `Employee with email ${userData.employeeEmail} not found`
+      );
+    }
+
+    // Step 2: Create User linked to the Employee
+    const user = await prisma.user.create({
+      data: {
+        userName: userData.userName,
+        password: userData.password, // In production, hash this (e.g., with bcrypt)
+        role: userData.role, // e.g., 'EMPLOYEE'
+        employeeId: employee.id, // Link via ID
+      },
+      include: { employee: true }, // Optional: Include employee details in response
+    });
+
+    return res.status(200).json({ message: "User created successfully", user });
   } catch (error) {
-    console.error(error);
-    return res.status(403).json({ error: error.message });
+    console.error("Error creating user:", error);
+    throw error; // Re-throw for caller to handle
   }
-};
+}
 
 // Delete user
 export async function deleteUser(req, res) {
@@ -307,73 +301,41 @@ export const login = async (req, res) => {
     // Normalize email to lowercase
     const normalizedEmail = email.toLowerCase();
 
-    // Find user by email
-    const user = await req.prisma.user.findUnique({
+    // Find employee by email, including linked user
+    const employee = await req.prisma.employee.findUnique({
       where: { email: normalizedEmail },
+      include: { user: true }, // Include the linked User
     });
 
-    if (!user) {
-      // Log failed attempt in AuditLog
-      await req.prisma.auditLog.create({
-        data: {
-          user: normalizedEmail || "Unknown",
-          userRole: "UNKNOWN",
-          action: "LOGIN",
-          resource: "USER",
-          resourceId: "N/A",
-          description: `Login attempt failed: Invalid email or password`,
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent") || "Unknown",
-          status: "FAILED",
-        },
-      });
+    if (!employee) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
+
+    // Check if employee has a linked user
+    if (!employee.user) {
+      return res
+        .status(401)
+        .json({ message: "No user account linked to this email" });
+    }
+
+    const user = employee.user;
 
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      // Log failed attempt in AuditLog
-      await req.prisma.auditLog.create({
-        data: {
-          user: normalizedEmail || "Unknown",
-          userRole: "UNKNOWN",
-          action: "LOGIN",
-          resource: "USER",
-          resourceId: user.id,
-          description: `Login attempt failed: Invalid email or password`,
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent") || "Unknown",
-          status: "FAILED",
-        },
-      });
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    // Check account status
-    if (user.status !== "active") {
-      // Log failed attempt in AuditLog
-      await req.prisma.auditLog.create({
-        data: {
-          user: normalizedEmail,
-          userRole: user.role,
-          action: "LOGIN",
-          resource: "USER",
-          resourceId: user.id,
-          description: `Login attempt failed: Account is not active`,
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent") || "Unknown",
-          status: "FAILED",
-        },
-      });
+    // Check account status (now in Employee model)
+    if (employee.status !== "ACTIVE") {
       return res.status(403).json({ message: "Account is not active" });
     }
 
     // Clear old tokens
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== "production",
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production", // Fixed: Use production check correctly
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
     };
     res.clearCookie("access_token", cookieOptions);
@@ -399,56 +361,11 @@ export const login = async (req, res) => {
       user.id
     );
 
-    // Update lastLogin
-    await req.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() },
-    });
-
-    // Log successful login in AuditLog
-    await req.prisma.auditLog.create({
-      data: {
-        user: user.email,
-        userRole: user.role,
-        action: "LOGIN",
-        resource: "USER",
-        resourceId: user.id,
-        description: `User ${user.email} logged in`,
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent") || "Unknown",
-        status: "SUCCESS",
-      },
-    });
-
-    // // Emit online users update (if using Socket.IO)
-    // if (req.io) {
-    //   req.io.emit("loggedUsersUpdate", {
-    //     id: user.id,
-    //     email: user.email,
-    //     role: user.role,
-    //   });
-    // }
-
     return res.status(200).json({
       message: "Login successful",
-      user: { id: user.id, email: user.email, role: user.role },
+      user: { id: user.id, email: employee.email, role: user.role }, // Use Employee.email
     });
   } catch (error) {
-    // Log error in AuditLog
-    await req.prisma.auditLog.create({
-      data: {
-        user: req.body.email || "Unknown",
-        userRole: "UNKNOWN",
-        action: "LOGIN",
-        resource: "USER",
-        resourceId: "N/A",
-        description: `Login attempt failed: ${error.message}`,
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent") || "Unknown",
-        status: "FAILED",
-      },
-    });
-
     return res
       .status(500)
       .json({ message: "Server error", error: error.message });
@@ -460,8 +377,8 @@ export const logout = async (req, res) => {
     // Clear cookies
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== "production",
-      sameSite: "none",
+      secure: process.env.NODE_ENV === "production", // Align with storeToken
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
     };
     res.clearCookie("access_token", cookieOptions);
@@ -471,50 +388,14 @@ export const logout = async (req, res) => {
     if (req.id) {
       await removeToken(req.id);
 
-      // Log successful logout in AuditLog
+      // Fetch user and linked employee for audit log
       const user = await req.prisma.user.findUnique({
         where: { id: req.id },
+        include: { employee: true }, // Include Employee for email
       });
-
-      if (user) {
-        await req.prisma.auditLog.create({
-          data: {
-            user: user.email,
-            userRole: user.role,
-            action: "LOGOUT",
-            resource: "USER",
-            resourceId: user.id,
-            description: `User ${user.email} logged out`,
-            ipAddress: req.ip,
-            userAgent: req.get("User-Agent") || "Unknown",
-            status: "SUCCESS",
-          },
-        });
-      }
     }
-
-    // Emit online users update (if using Socket.IO)
-    // if (req.io) {
-    //   req.io.emit("loggedUsersUpdate", { id: req.id, status: "offline" });
-    // }
-
     return res.status(200).json({ message: "Logout successful" });
   } catch (error) {
-    // Log error in AuditLog
-    await req.prisma.auditLog.create({
-      data: {
-        user: "Unknown",
-        userRole: "UNKNOWN",
-        action: "LOGOUT",
-        resource: "USER",
-        resourceId: req.id || "N/A",
-        description: `Logout attempt failed: ${error.message}`,
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent") || "Unknown",
-        status: "FAILED",
-      },
-    });
-
     return res
       .status(500)
       .json({ message: "Server error", error: error.message });
@@ -532,3 +413,6 @@ export const getUserInfo = async (req, res) => {
   }
   return res.status(200).json(user);
 };
+
+
+
