@@ -6,47 +6,49 @@ import { getRedisClient } from "../config/redisClient.js";
 
 const prisma = new PrismaClient();
 
-// Get all users with optional search/filter
-export async function getUsers(req, res) {
-  try {
-    const { search, role, status, department } = req.query;
-    const where = {};
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { email: { contains: search, mode: "insensitive" } },
-      ];
-    }
-    if (role && role !== "all") where.role = role;
-    if (status && status !== "all") where.status = status;
-    if (department) where.department = department;
-    const users = await prisma.user.findMany({ where });
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
 // Get user stats
+
 export async function getUserStats(req, res) {
+  
   try {
-    const total = await prisma.user.count();
-    const active = await prisma.user.count({ where: { status: "Active" } });
-    const roles = await prisma.user.groupBy({
-      by: ["role"],
-      _count: { role: true },
+    // Fetch all users with their related employee data
+    const users = await prisma.user.findMany({
+      include: {
+        employee: true, // Include employee data to access status
+      },
     });
-    res.json({ total, active, roles });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+    // Calculate statistics
+    const roleStats = {
+      total: users.length,
+      active: users.filter(u => u.employee?.status === 'ACTIVE').length,
+      admin: users.filter(u => u.role === 'ADMIN').length,
+      management: users.filter(u => u.role === 'MANAGEMENT').length,
+      merchandiser: users.filter(u => u.role === 'MERCHANDISER').length,
+      cad: users.filter(u => u.role === 'CAD').length,
+      sampleFabric: users.filter(u => u.role === 'SAMPLE_FABRIC').length,
+      sampleRoom: users.filter(u => u.role === 'SAMPLE_ROOM').length,
+    };
+
+    // Send response
+    return res.status(200).json({
+      success: true,
+      data: roleStats,
+    });
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-
-// Function 2: Create a User linked to an existing Employee (searches by email)
 export const createUser = async (req, res) => {
   try {
-    await checkAdmin(req.user.id);
+    await checkAdmin(req.user);
     const userData = req.body;
     // Step 1: Search for Employee by email
     const employee = await prisma.employee.findUnique({
@@ -75,7 +77,7 @@ export const createUser = async (req, res) => {
     console.error("Error creating user:", error);
     throw error; // Re-throw for caller to handle
   }
-}
+};
 
 // Delete user
 export async function deleteUser(req, res) {
@@ -88,11 +90,108 @@ export async function deleteUser(req, res) {
   }
 }
 
+export const getUsers = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = 20;
+    const search = req.query.search || "";
+    const skip = (page - 1) * limit;
+
+    // Where clause for findMany (includes employee relation)
+    const where = search
+      ? {
+          OR: [
+            { userName: { contains: search, mode: "insensitive" } },
+            { role: { contains: search, mode: "insensitive" } },
+            {
+              employee: {
+                email: { contains: search, mode: "insensitive" },
+                isNot: null,
+              },
+            },
+            {
+              employee: {
+                phoneNumber: { contains: search, mode: "insensitive" },
+                isNot: null,
+              },
+            },
+          ],
+        }
+      : {};
+
+    // Simplified where clause for count (excludes employee relation)
+    const countWhere = search
+      ? {
+          OR: [
+            { userName: { contains: search, mode: "insensitive" } },
+            { role: { contains: search, mode: "insensitive" } },
+          ],
+        }
+      : {};
+
+    // Fetch users with related employee data
+    const users = await prisma.user.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { userName: "asc" },
+      include: {
+        employee: {
+          select: {
+            phoneNumber: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Map the results to include only the requested fields
+    const formattedUsers = users.map((user) => ({
+      id: user.id,
+      userName: user.userName,
+      email: user.employee?.email || null,
+      role: user.role,
+      phoneNumber: user.employee?.phoneNumber || null,
+    }));
+
+    // Get total count with simplified where clause
+    // const totalUsers = await prisma.user.count({ where: countWhere });
+const totalUsers = 0;
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalUsers / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    res.status(200).json({
+      success: true,
+      data: formattedUsers,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalUsers,
+        limit,
+        hasNextPage,
+        hasPrevPage,
+        search: search || null,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching users",
+      error: error.message,
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+};
+
 // Toggle user status
 export const toggleUserStatus = async (req, res) => {
   try {
     // Check if the requesting user is an admin
-    await checkAdmin(req.user.id);
+    await checkAdmin(req.user);
 
     const { userId } = req.params;
     const { status } = req.body;
@@ -132,15 +231,18 @@ export const toggleUserStatus = async (req, res) => {
 
 export const updateUser = async (req, res) => {
   try {
-    // Check if the requesting user is an admin
-    const isAdmin = await checkAdmin(req.user.id);
+    const isAdmin = await checkAdmin(req.user);
     if (!isAdmin) {
-      return res.status(403).json({ error: "Only admins can update users" });
+      return res.status(403).json({ error: "Forbidden: Admins only" });
     }
 
-    const { userId } = req.params;
-    const { name, email, customId, role, status, department } = req.body;
-
+    const { id } = req.params;
+    const userId = id;
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+    const { userName, email, role, customId } = req.body;
+    console.log(req.body);
     // Prevent admin from updating their own account
     if (userId === req.user.id) {
       return res
@@ -148,64 +250,66 @@ export const updateUser = async (req, res) => {
         .json({ error: "Admins cannot update their own account" });
     }
 
-    // Check if the user exists
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Validate input fields
-    if (!name && !email && !customId && !role && !status && !department) {
+    // Ensure at least one field is provided
+    if (!userName && !email && !role && !customId) {
       return res
         .status(400)
         .json({ error: "At least one field must be provided for update" });
     }
 
-    // Validate role and status if provided
-    if (role && !["ADMIN", "USER", "MANAGER", "GUEST"].includes(role)) {
+    // Validate role if provided
+    if (
+      role &&
+      ![
+        "ADMIN",
+        "MANAGEMENT",
+        "MERCHANDISER",
+        "CAD",
+        "SAMPLE_FABRIC",
+        "SAMPLE_ROOM",
+      ].includes(role)
+    ) {
       return res.status(400).json({ error: "Invalid role value" });
     }
-    if (
-      status &&
-      !["ACTIVE", "INACTIVE", "PENDING", "SUSPENDED"].includes(status)
-    ) {
-      return res.status(400).json({ error: "Invalid status value" });
-    }
 
-    // Prepare update data
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (email) updateData.email = email;
-    if (customId) updateData.customId = customId;
-    if (role) updateData.role = role;
-    if (status) updateData.status = status;
-    if (department) updateData.department = department;
-
-    // Update the user
+    // Update User + Employee
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: updateData,
+      data: {
+        ...(userName && { userName }),
+        ...(role && { role }),
+        employee:
+          email || customId
+            ? {
+                update: {
+                  ...(email && { email }),
+                  ...(customId && { customId }),
+                },
+              }
+            : undefined,
+      },
       select: {
         id: true,
-        customId: true,
-        name: true,
-        email: true,
+        userName: true,
         role: true,
-        status: true,
-        department: true,
-        createdAt: true,
-        updatedAt: true,
+        employee: {
+          select: {
+            id: true,
+            customId: true,
+            name: true,
+            email: true,
+          },
+        },
       },
     });
 
     res.status(200).json(updatedUser);
   } catch (error) {
+    console.error("Error updating user:", error);
     if (error.code === "P2002") {
       return res
         .status(400)
-        .json({ error: "Email or customId already exists" });
+        .json({ error: "Email, userName, or customId already exists" });
     }
     if (error.code === "P2025") {
       return res.status(404).json({ error: "User not found" });
@@ -413,6 +517,3 @@ export const getUserInfo = async (req, res) => {
   }
   return res.status(200).json(user);
 };
-
-
-
