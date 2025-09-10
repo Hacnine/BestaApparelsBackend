@@ -9,9 +9,11 @@ datasource db {
 
 enum Role {
   ADMIN
-  USER
-  MANAGER
-  GUEST
+  MANAGEMENT
+  MERCHANDISER
+  CAD
+  SAMPLE_FABRIC
+  SAMPLE_ROOM
 }
 
 enum Status {
@@ -36,6 +38,7 @@ model Employee {
   customId    String   @unique
   name        String
   email       String   @unique
+  phoneNumber String?
   status      Status
   designation String
   department  String
