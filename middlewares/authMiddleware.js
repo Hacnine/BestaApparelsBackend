@@ -21,7 +21,7 @@ export const requireAuth = async (req, res, next) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    req.id = user.id; // Attach user ID to req.id
+    req.user = user; // Attach user ID to req.id
     next();
   } catch (error) {
     return res.status(401).json({ message: "Invalid token" });
