@@ -1,13 +1,12 @@
 import express from 'express';
+import { requireAuth } from '../middlewares/authMiddleware.js';
+import { createEmployee, getEmployees, updateEmployeeStatus } from '../controllers/employeeController.js';
 
-import { requireAuth } from '../middlewares/authMiddleware.js'
-import { createEmployee } from '../controllers/employeeController.js';
+const employeeRouter = express.Router();
+employeeRouter.use(requireAuth);
 
+employeeRouter.post('/create-employee', createEmployee);
+employeeRouter.get('/employees', getEmployees);
+employeeRouter.patch('/employee/:id/status', updateEmployeeStatus);
 
-const router = express.Router();
-router.use(requireAuth);
-
-router.post('/create-employee', createEmployee);
-// router.put('/:id', updateUser);
-
-export default router;
+export default employeeRouter;
