@@ -18,7 +18,7 @@ import { connectRedisClient } from "./config/redisClient.js";
 import logger from "./utils/logger.js";
 import { initialSocketServer } from "./sockets/socketindex.js";
 
-import apiRoute from "./routes/apiIndex.js";
+import routeIndex from "./routes/routeIndex.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -119,7 +119,7 @@ let io;
     });
 
     // API Routes
-    app.use("/", apiRoute);
+    app.use("/", routeIndex);
 
     // Health check
     app.get("/health", (_req, res) => res.status(200).send("OK"));

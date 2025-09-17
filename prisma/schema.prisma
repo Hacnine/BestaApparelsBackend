@@ -22,15 +22,17 @@ enum Status {
   PENDING
   SUSPENDED
 }
+
 model User {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
   userName    String    @unique
   password    String
   role        Role
-  employeeId  String    @unique @db.ObjectId  // Foreign key to Employee
-  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)  // One-to-one relation
+  employeeId  String    @unique @db.ObjectId
+  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tnas        TNA[]     @relation(name: "TNAtoMerchandiser") // One-to-many relation
 
-  @@map("users")  // Optional: Map to collection name
+  @@map("users")
 }
 
 model Employee {
@@ -42,27 +44,42 @@ model Employee {
   status      Status
   designation String
   department  String
-  user        User?    @relation  // Back-reference to User (optional, for queries)
+  user        User?    @relation
 
-  @@map("employees")  
+  @@map("employees")
+}
+
+enum TNAStatus {
+  ACTIVE
+  CANCELLED
+  INACTIVE
+}
+
+enum sampleType {
+  DVP
+  PP1
+  PP2
+  PP3
+  PP4
+  PP5
 }
 
 model TNA {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
-  orderNumber    String
-  buyer          String
-  style          String
-  totalTasks     Int
-  completedTasks Int
-  percentage     Int
-  status         String
-  dueDate        DateTime
-  currentStage   String
-  merchandiser   String
-  priority       String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  @@map("tna")
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  buyer             Buyer?    @relation(fields: [buyerId], references: [id], name: "TNAtoBuyer")
+  buyerId           String?   @db.ObjectId // One-to-many, no @unique
+  style             String
+  itemName          String
+  sampleSendingDate DateTime
+  orderDate         DateTime
+  merchandiser      User?     @relation(fields: [userId], references: [id], name: "TNAtoMerchandiser")
+  status            TNAStatus @default(ACTIVE)
+  sampleType       sampleType
+  userId            String?   @db.ObjectId // No @unique for one-to-many
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("tnas")
 }
 
 model AuditLog {
@@ -77,10 +94,23 @@ model AuditLog {
   ipAddress   String
   userAgent   String
   status      String
+  @@map("audit_logs")
 }
 
-// npx prisma db pull
-// npx prisma db push
-// npx prisma generate
-// npx prisma migrate dev --name init
-// npx prisma studio
+model Buyer {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  country           String
+  buyerDepartments  Department? @relation("Buyer_buyerDepartments", fields: [buyerDepartmentId], references: [id])
+  buyerDepartmentId String?     @db.ObjectId
+  tnas              TNA[]       @relation(name: "TNAtoBuyer")
+  @@map("buyers")
+}
+
+model Department {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String  
+  contactPerson String
+  buyers        Buyer[]  @relation("Buyer_buyerDepartments")
+  @@map("departments")
+}

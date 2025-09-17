@@ -10,4 +10,5 @@ model AuditLog {
   ipAddress   String
   userAgent   String
   status      String
+  @@map("audit_logs")
 }

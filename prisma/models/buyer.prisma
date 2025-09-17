@@ -1,0 +1,9 @@
+model Buyer {
+    id                String      @id @default(auto()) @map("_id") @db.ObjectId
+    name              String
+    country           String
+    buyerDepartments  Department? @relation(fields: [buyerDepartmentId], references: [id])
+    buyerDepartmentId String?     @unique @db.ObjectId
+    tna             TNA?
+    @@map("buyers")
+}
