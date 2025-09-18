@@ -127,6 +127,17 @@ model CadDesign {
   @@map("cad_designs")
 }
 
+model FabricBooking {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  fabricStyle  String
+  bookingDate  DateTime
+  receiveDate  DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("fabric_bookings")
+}
+
 model SampleDevelopment {
   id                  String   @id @default(auto()) @map("_id") @db.ObjectId
   style               String

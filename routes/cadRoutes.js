@@ -5,5 +5,6 @@ import { createSampleDevelopment } from '../controllers/sampleDevelopementContro
 
 const cadRoute = express.Router();
 cadRoute.post('/cad-approval', createCadApproval);
+cadRoute.post('/fabric-booking', createFabricBooking);
 cadRoute.post('/sample-development', createSampleDevelopment);
 export default cadRoute;
