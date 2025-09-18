@@ -13,4 +13,5 @@ merchandiserRoute.get('/buyers', getBuyers);
 merchandiserRoute.post('/departments', getDepartments);
 
 
+
 export default merchandiserRoute;

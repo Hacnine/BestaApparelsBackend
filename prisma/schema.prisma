@@ -114,3 +114,28 @@ model Department {
   buyers        Buyer[]  @relation("Buyer_buyerDepartments")
   @@map("departments")
 }
+
+model CadDesign {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  style            String
+  fileReceiveDate DateTime
+  completeDate    DateTime
+  CadMasterName   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("cad_designs")
+}
+
+model SampleDevelopment {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  style               String
+  samplemanName       String
+  sampleReceiveDate   DateTime
+  sampleCompleteDate  DateTime
+  sampleQuantity      Int
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("sample_developments")
+}
