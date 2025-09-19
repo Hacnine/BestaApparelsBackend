@@ -1,6 +1,7 @@
 import express from 'express';
 import { createCadApproval } from '../controllers/cadController.js';
 import { createSampleDevelopment } from '../controllers/sampleDevelopementController.js';
+import { createFabricBooking } from '../controllers/fabricBookingController.js';
 
 
 const cadRoute = express.Router();

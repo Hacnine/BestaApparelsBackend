@@ -73,3 +73,34 @@ export async function getDepartmentProgress(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
+
+// Get TNA summary (omit updatedAt, createdAt, status)
+export async function getTNASummary(req, res) {
+  try {
+    const tnas = await prisma.tNA.findMany({
+      select: {
+        id: true,
+        buyer: { select: { name: true } },
+        style: true,
+        itemName: true,
+        sampleSendingDate: true,
+        orderDate: true,
+        merchandiser: { select: { userName: true } },
+        sampleType: true,
+        userId: true,
+        // omit: createdAt, updatedAt, status, buyerId
+      }
+    });
+    // Flatten merchandiser to just userName and buyer to buyerName
+    const summary = tnas.map(tna => ({
+      ...tna,
+      merchandiser: tna.merchandiser?.userName || null,
+      buyerName: tna.buyer?.name || null,
+    }));
+    // Remove the buyer object from the response
+    const cleaned = summary.map(({ buyer, ...rest }) => rest);
+    res.json(cleaned);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}

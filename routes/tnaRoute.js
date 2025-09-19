@@ -4,7 +4,8 @@ import {
   createTNA,
   updateTNA,
   deleteTNA,
-  getDepartmentProgress
+  getDepartmentProgress,
+  getTNASummary
 } from '../controllers/tnaController.js';
 
 const router = express.Router();
@@ -14,5 +15,6 @@ router.post('/', createTNA);
 router.put('/:id', updateTNA);
 router.delete('/:id', deleteTNA);
 router.get('/department-progress', getDepartmentProgress);
+router.get('/get-tna-summary', getTNASummary);
 
 export default router;
