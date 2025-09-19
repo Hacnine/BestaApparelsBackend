@@ -38,8 +38,6 @@ export const getDepartments = async (req, res) => {
         id: true,
         name: true,
         contactPerson: true,
-        email: true,
-        phoneNumber: true,
       },
     });
 
@@ -137,7 +135,6 @@ export const getBuyers = async (req, res) => {
         buyerDepartments: {
           select: {
             name: true,
-            email: true,
           },
         },
       },
