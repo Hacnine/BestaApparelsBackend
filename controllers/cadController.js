@@ -22,3 +22,31 @@ export const createCadApproval = async (req, res) => {
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 };
+
+export const getCadApproval = async (req, res) => {
+  try {
+    const { page = 1, pageSize = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(pageSize);
+    const take = parseInt(pageSize);
+
+    const [cadApprovals, total] = await Promise.all([
+      prisma.cadDesign.findMany({
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.cadDesign.count()
+    ]);
+
+    res.json({
+      data: cadApprovals,
+      page: parseInt(page),
+      pageSize: parseInt(pageSize),
+      total,
+      totalPages: Math.ceil(total / pageSize)
+    });
+  } catch (error) {
+    console.error('Error fetching CAD Approvals:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+};

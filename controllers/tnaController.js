@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 // Get all TNAs with optional filters
 export async function getTNAs(req, res) {
   try {
-    const { status, merchandiser, buyer, style, search } = req.query;
+    const { status, merchandiser, buyer, style, search, page = 1, pageSize = 10 } = req.query;
     const where = {};
     if (status && status !== 'all') where.status = status;
     if (merchandiser) where.merchandiser = merchandiser;
@@ -17,8 +17,53 @@ export async function getTNAs(req, res) {
         { style: { contains: search, mode: 'insensitive' } }
       ];
     }
-    const tnas = await prisma.tNA.findMany({ where });
-    res.json(tnas);
+    const skip = (parseInt(page) - 1) * parseInt(pageSize);
+    const take = parseInt(pageSize);
+
+    const [tnas, total] = await Promise.all([
+      prisma.tNA.findMany({
+        where,
+        select: {
+          id: true,
+          style: true,
+          itemName: true,
+          sampleSendingDate: true,
+          orderDate: true,
+          status: true,
+          sampleType: true,
+          createdAt: true,
+          updatedAt: true,
+          buyer: {
+            select: {
+              id: true,
+              name: true,
+              country: true,
+              buyerDepartmentId: true
+            }
+          },
+          merchandiser: {
+            select: {
+              id: true,
+              userName: true,
+              role: true,
+              employeeId: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take
+      }),
+      prisma.tNA.count({ where })
+    ]);
+
+    res.json({
+      data: tnas,
+      page: parseInt(page),
+      pageSize: parseInt(pageSize),
+      total,
+      totalPages: Math.ceil(total / pageSize)
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -74,6 +119,7 @@ export async function getDepartmentProgress(req, res) {
   }
 }
 
+
 // Get TNA summary (omit updatedAt, createdAt, status)
 export async function getTNASummary(req, res) {
   try {
@@ -91,16 +137,28 @@ export async function getTNASummary(req, res) {
         // omit: createdAt, updatedAt, status, buyerId
       }
     });
-    // Flatten merchandiser to just userName and buyer to buyerName
-    const summary = tnas.map(tna => ({
-      ...tna,
-      merchandiser: tna.merchandiser?.userName || null,
-      buyerName: tna.buyer?.name || null,
-    }));
-    // Remove the buyer object from the response
+
+    const summary = await Promise.all(
+      tnas.map(async tna => {
+        const cad = await prisma.cadDesign.findFirst({
+          where: { style: tna.style },
+          select: { completeDate: true }
+        });
+
+        return {
+          ...tna,
+          merchandiser: tna.merchandiser?.userName || null,
+          buyerName: tna.buyer?.name || null,
+          cadCompleteDate: cad?.completeDate || null
+          // sampleType is already included from tna, do not add sampleTypes array
+        };
+      })
+    );
+
     const cleaned = summary.map(({ buyer, ...rest }) => rest);
     res.json(cleaned);
   } catch (err) {
+    console.error("getTNASummary error:", err);
     res.status(500).json({ error: err.message });
   }
 }
