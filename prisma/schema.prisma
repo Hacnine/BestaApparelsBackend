@@ -24,27 +24,27 @@ enum Status {
 }
 
 model User {
-  id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  userName    String    @unique
-  password    String
-  role        Role
-  employeeId  String    @unique @db.ObjectId
-  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  tnas        TNA[]     @relation(name: "TNAtoMerchandiser") // One-to-many relation
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  userName   String    @unique
+  password   String
+  role       Role
+  employeeId String    @unique @db.ObjectId
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tnas       TNA[]     @relation(name: "TNAtoMerchandiser") // One-to-many relation
 
   @@map("users")
 }
 
 model Employee {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  customId    String   @unique
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  customId    String  @unique
   name        String
-  email       String   @unique
+  email       String  @unique
   phoneNumber String?
   status      Status
   designation String
   department  String
-  user        User?    @relation
+  user        User?   @relation
 
   @@map("employees")
 }
@@ -65,19 +65,19 @@ enum sampleType {
 }
 
 model TNA {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
-  buyer             Buyer?    @relation(fields: [buyerId], references: [id], name: "TNAtoBuyer")
-  buyerId           String?   @db.ObjectId // One-to-many, no @unique
+  id                String     @id @default(auto()) @map("_id") @db.ObjectId
+  buyer             Buyer?     @relation(fields: [buyerId], references: [id], name: "TNAtoBuyer")
+  buyerId           String?    @db.ObjectId // One-to-many, no @unique
   style             String
   itemName          String
   sampleSendingDate DateTime
   orderDate         DateTime
-  merchandiser      User?     @relation(fields: [userId], references: [id], name: "TNAtoMerchandiser")
-  status            TNAStatus @default(ACTIVE)
-  sampleType       sampleType
-  userId            String?   @db.ObjectId // No @unique for one-to-many
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  merchandiser      User?      @relation(fields: [userId], references: [id], name: "TNAtoMerchandiser")
+  status            TNAStatus  @default(ACTIVE)
+  sampleType        sampleType
+  userId            String?    @db.ObjectId // No @unique for one-to-many
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   @@map("tnas")
 }
@@ -94,6 +94,7 @@ model AuditLog {
   ipAddress   String
   userAgent   String
   status      String
+
   @@map("audit_logs")
 }
 
@@ -104,49 +105,65 @@ model Buyer {
   buyerDepartments  Department? @relation("Buyer_buyerDepartments", fields: [buyerDepartmentId], references: [id])
   buyerDepartmentId String?     @db.ObjectId
   tnas              TNA[]       @relation(name: "TNAtoBuyer")
+
   @@map("buyers")
 }
 
 model Department {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  name          String  
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
   contactPerson String
-  buyers        Buyer[]  @relation("Buyer_buyerDepartments")
+  buyers        Buyer[] @relation("Buyer_buyerDepartments")
+
   @@map("departments")
 }
 
 model CadDesign {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  style            String
-  fileReceiveDate DateTime
-  completeDate    DateTime
-  CadMasterName   String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  style                 String
+  fileReceiveDate       DateTime
+  completeDate          DateTime
+  CadMasterName         String?
+  finalFileReceivedDate DateTime?
+  finalCompleteDate     DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@map("cad_designs")
 }
 
 model FabricBooking {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  fabricStyle  String
-  bookingDate  DateTime
-  receiveDate  DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  style             String
+  bookingDate       DateTime
+  receiveDate       DateTime
+  actualBookingDate DateTime?
+  actualReceiveDate DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@map("fabric_bookings")
 }
 
 model SampleDevelopment {
-  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
-  style               String
-  samplemanName       String
-  sampleReceiveDate   DateTime
-  sampleCompleteDate  DateTime
-  sampleQuantity      Int
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                       String   @id @default(auto()) @map("_id") @db.ObjectId
+  style                    String
+  samplemanName            String
+  sampleReceiveDate        DateTime
+  sampleCompleteDate       DateTime
+  actualSampleReceiveDate  DateTime?
+  actualSampleCompleteDate DateTime?
+  sampleQuantity           Int
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   @@map("sample_developments")
 }
+
+
+
+// node combine-schema.js
+// npx prisma db push
+// npx prisma generate
+// npx prisma migrate dev --name init
+// npx prisma studio
