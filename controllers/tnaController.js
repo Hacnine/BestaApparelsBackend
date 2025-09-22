@@ -140,17 +140,47 @@ export async function getTNASummary(req, res) {
 
     const summary = await Promise.all(
       tnas.map(async tna => {
+        // Get all cadDesign fields for the matching style
         const cad = await prisma.cadDesign.findFirst({
+          where: { style: tna.style }
+        });
+
+        // Get FabricBooking for the style, omit createdAt and updatedAt
+        const fabricBooking = await prisma.fabricBooking.findFirst({
           where: { style: tna.style },
-          select: { completeDate: true }
+          select: {
+            id: true,
+            style: true,
+            bookingDate: true,
+            receiveDate: true,
+            actualBookingDate: true,
+            actualReceiveDate: true
+            // omit createdAt, updatedAt
+          }
+        });
+
+        // Get SampleDevelopment for the style, omit createdAt and updatedAt
+        const sampleDevelopment = await prisma.sampleDevelopment.findFirst({
+          where: { style: tna.style },
+          select: {
+            id: true,
+            style: true,
+            samplemanName: true,
+            sampleReceiveDate: true,
+            sampleCompleteDate: true,
+            actualSampleReceiveDate: true,
+            actualSampleCompleteDate: true,
+            sampleQuantity: true
+          }
         });
 
         return {
           ...tna,
           merchandiser: tna.merchandiser?.userName || null,
           buyerName: tna.buyer?.name || null,
-          cadCompleteDate: cad?.completeDate || null
-          // sampleType is already included from tna, do not add sampleTypes array
+          cad,
+          fabricBooking, // will be null if not found
+          sampleDevelopment, // will be null if not found
         };
       })
     );

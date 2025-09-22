@@ -1,4 +1,3 @@
-
 import { Router } from "express";
 
 import userRouter from "./userRoute.js";
@@ -8,6 +7,8 @@ import dashboardRouter from "./dashboardRoute.js";
 import employeeRouter from "./employeeRoute.js";
 import merchandiserRoute from "./merchandiserRoute.js";
 import cadRoute from "./cadRoutes.js";
+import sampleDevelopmentRoute from "./sampleDevelopementRoutes.js";
+import fabricBookingRoute from "./fabricBookingRoute.js";
 
 const apiRoute = Router();
 
@@ -18,5 +19,7 @@ apiRoute.use("/audit-logs", auditRouter);
 apiRoute.use("/dashboard", dashboardRouter);
 apiRoute.use("/merchandiser", merchandiserRoute);
 apiRoute.use("/cad", cadRoute);
+apiRoute.use("/sample-development", sampleDevelopmentRoute);
+apiRoute.use("/fabric-booking", fabricBookingRoute);
 
 export default apiRoute;
