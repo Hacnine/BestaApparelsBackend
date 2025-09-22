@@ -50,3 +50,47 @@ export const getCadApproval = async (req, res) => {
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 };
+
+export const updateCadDesign = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      style,
+      fileReceiveDate,
+      completeDate,
+      CadMasterName,
+      finalFileReceivedDate,
+      finalCompleteDate,
+    } = req.body;
+
+    const updatedCad = await prisma.cadDesign.update({
+      where: { id },
+      data: {
+        ...(style && { style }),
+        ...(fileReceiveDate && { fileReceiveDate: new Date(fileReceiveDate) }),
+        ...(completeDate && { completeDate: new Date(completeDate) }),
+        ...(CadMasterName !== undefined && { CadMasterName }),
+        ...(finalFileReceivedDate && { finalFileReceivedDate: new Date(finalFileReceivedDate) }),
+        ...(finalCompleteDate && { finalCompleteDate: new Date(finalCompleteDate) }),
+      },
+    });
+
+    res.json({ message: "CAD Design updated successfully", data: updatedCad });
+  } catch (error) {
+    console.error("Error updating CAD Design:", error);
+    res.status(500).json({ error: "Internal server error", details: error.message });
+  }
+};
+
+export const deleteCadDesign = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.cadDesign.delete({
+      where: { id },
+    });
+    res.json({ message: "CAD Design deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting CAD Design:", error);
+    res.status(500).json({ error: "Internal server error", details: error.message });
+  }
+};
