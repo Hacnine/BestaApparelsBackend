@@ -9,6 +9,7 @@ import merchandiserRoute from "./merchandiserRoute.js";
 import cadRoute from "./cadRoutes.js";
 import sampleDevelopmentRoute from "./sampleDevelopementRoutes.js";
 import fabricBookingRoute from "./fabricBookingRoute.js";
+import dhlTrackingRoute from "./dHLTrackingRoute.js";
 
 const apiRoute = Router();
 
@@ -21,5 +22,6 @@ apiRoute.use("/merchandiser", merchandiserRoute);
 apiRoute.use("/cad", cadRoute);
 apiRoute.use("/sample-development", sampleDevelopmentRoute);
 apiRoute.use("/fabric-booking", fabricBookingRoute);
+apiRoute.use("/dhl-tracking", dhlTrackingRoute);
 
 export default apiRoute;

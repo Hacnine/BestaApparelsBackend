@@ -160,6 +160,18 @@ model SampleDevelopment {
   @@map("sample_developments")
 }
 
+model DHLTracking {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  style             String
+  date              DateTime
+  trackingNumber    String
+  isComplete        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("dhl_trackings")
+}
+
 
 
 // node combine-schema.js
