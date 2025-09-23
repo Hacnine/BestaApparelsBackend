@@ -5,7 +5,8 @@ import {
   updateTNA,
   deleteTNA,
   getDepartmentProgress,
-  getTNASummary
+  getTNASummary,
+  getTNASummaryCard
 } from '../controllers/tnaController.js';
 
 const router = express.Router();
@@ -16,5 +17,6 @@ router.put('/:id', updateTNA);
 router.delete('/:id', deleteTNA);
 router.get('/department-progress', getDepartmentProgress);
 router.get('/get-tna-summary', getTNASummary);
+router.get('/get-tna-summary-card', getTNASummaryCard);
 
 export default router;

@@ -119,11 +119,16 @@ export async function getDepartmentProgress(req, res) {
   }
 }
 
-
 // Get TNA summary (omit updatedAt, createdAt, status)
 export async function getTNASummary(req, res) {
   try {
+    const { page = 1, pageSize = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(pageSize);
+    const take = parseInt(pageSize);
+
     const tnas = await prisma.tNA.findMany({
+      skip,
+      take,
       select: {
         id: true,
         buyer: { select: { name: true } },
@@ -137,6 +142,8 @@ export async function getTNASummary(req, res) {
         // omit: createdAt, updatedAt, status, buyerId
       }
     });
+
+    const total = await prisma.tNA.count();
 
     const summary = await Promise.all(
       tnas.map(async tna => {
@@ -174,6 +181,19 @@ export async function getTNASummary(req, res) {
           }
         });
 
+        // Get DHLTracking for the style, only needed fields
+        let dhlTracking = await prisma.dHLTracking.findFirst({
+          where: { style: tna.style },
+          select: {
+            date: true,
+            trackingNumber: true,
+            isComplete: true
+          }
+        });
+
+        // If not found, set to null
+        if (!dhlTracking) dhlTracking = null;
+
         return {
           ...tna,
           merchandiser: tna.merchandiser?.userName || null,
@@ -181,14 +201,88 @@ export async function getTNASummary(req, res) {
           cad,
           fabricBooking, // will be null if not found
           sampleDevelopment, // will be null if not found
+          dhlTracking, // will be null if not found
         };
       })
     );
 
     const cleaned = summary.map(({ buyer, ...rest }) => rest);
-    res.json(cleaned);
+    res.json({
+      data: cleaned,
+      page: parseInt(page),
+      pageSize: parseInt(pageSize),
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    });
   } catch (err) {
     console.error("getTNASummary error:", err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// Summary Card Function
+export async function getTNASummaryCard(req, res) {
+  try {
+    // Fetch all TNAs with style, sampleSendingDate, and related DHLTracking
+    const tnas = await prisma.tNA.findMany({
+      select: {
+        id: true,
+        style: true,
+        sampleSendingDate: true,
+      }
+    });
+
+    // Fetch all DHLTracking records for these styles
+    const styles = tnas.map(tna => tna.style);
+    const dhlTrackings = await prisma.dHLTracking.findMany({
+      where: { style: { in: styles } },
+      select: {
+        style: true,
+        isComplete: true,
+        date: true,
+      }
+    });
+
+    // Build a map for quick lookup
+    const dhlMap = {};
+    dhlTrackings.forEach(dhl => {
+      dhlMap[dhl.style] = dhl;
+    });
+
+    let onProcess = 0;
+    let completed = 0;
+    let overdue = 0;
+
+    const today = new Date();
+    tnas.forEach(tna => {
+      const dhl = dhlMap[tna.style];
+      if (dhl && dhl.isComplete) {
+        completed += 1;
+      } else if (dhl && dhl.isComplete === false) {
+        // Check if overdue: sampleSendingDate < today
+        if (tna.sampleSendingDate && new Date(tna.sampleSendingDate) < today) {
+          overdue += 1;
+        } else {
+          onProcess += 1;
+        }
+      } else {
+        // No DHLTracking or isComplete is not true
+        if (tna.sampleSendingDate && new Date(tna.sampleSendingDate) < today) {
+          overdue += 1;
+        } else {
+          onProcess += 1;
+        }
+      }
+    });
+
+    res.json({
+      onProcess,
+      completed,
+      overdue,
+      total: tnas.length
+    });
+  } catch (err) {
+    console.error("getTNASummaryCard error:", err);
     res.status(500).json({ error: err.message });
   }
 }
