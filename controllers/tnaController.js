@@ -122,13 +122,43 @@ export async function getDepartmentProgress(req, res) {
 // Get TNA summary (omit updatedAt, createdAt, status)
 export async function getTNASummary(req, res) {
   try {
-    const { page = 1, pageSize = 10 } = req.query;
+    const { page = 1, pageSize = 10, search, startDate, endDate } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
     const take = parseInt(pageSize);
+
+    // Build where clause for search
+    const where = {};
+
+    // Search by name (style, itemName, buyerName, merchandiser)
+    if (search) {
+      where.OR = [
+        { style: { contains: search, mode: "insensitive" } },
+        { itemName: { contains: search, mode: "insensitive" } },
+        { buyer: { name: { contains: search, mode: "insensitive" } } },
+        { merchandiser: { userName: { contains: search, mode: "insensitive" } } }
+      ];
+    }
+
+    // Search by date range (sampleSendingDate)
+    if (startDate && endDate) {
+      where.sampleSendingDate = {
+        gte: new Date(startDate),
+        lte: new Date(endDate)
+      };
+    } else if (startDate) {
+      where.sampleSendingDate = {
+        gte: new Date(startDate)
+      };
+    } else if (endDate) {
+      where.sampleSendingDate = {
+        lte: new Date(endDate)
+      };
+    }
 
     const tnas = await prisma.tNA.findMany({
       skip,
       take,
+      where,
       select: {
         id: true,
         buyer: { select: { name: true } },
@@ -143,7 +173,7 @@ export async function getTNASummary(req, res) {
       }
     });
 
-    const total = await prisma.tNA.count();
+    const total = await prisma.tNA.count({ where });
 
     const summary = await Promise.all(
       tnas.map(async tna => {
