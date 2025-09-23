@@ -61,11 +61,14 @@ export const createUser = async (req, res) => {
       );
     }
 
+    // Hash the password before saving
+    const hashedPassword = await bcrypt.hash(userData.password, 10);
+
     // Step 2: Create User linked to the Employee
     const user = await prisma.user.create({
       data: {
         userName: userData.userName,
-        password: userData.password, // In production, hash this (e.g., with bcrypt)
+        password: hashedPassword, // Save hashed password
         role: userData.role, // e.g., 'EMPLOYEE'
         employeeId: employee.id, // Link via ID
       },
@@ -467,7 +470,7 @@ console.log(req.body);
 
     return res.status(200).json({
       message: "Login successful",
-      user: { id: user.id, email: employee.email, role: user.role }, // Use Employee.email
+      user: { id: user.id, name: user.userName, email: employee.email, role: user.role }, // Use Employee.email
     });
   } catch (error) {
     return res
