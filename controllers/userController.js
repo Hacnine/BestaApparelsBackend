@@ -394,7 +394,7 @@ const removeToken = async (userId) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
+console.log(req.body);
     // Validate input
     if (!email || !password) {
       return res

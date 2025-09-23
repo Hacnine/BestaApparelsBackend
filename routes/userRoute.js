@@ -17,8 +17,9 @@ import { requireAuth } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 router.post('/login', login);
-router.use(requireAuth);
 router.post('/logout', logout);
+router.use(requireAuth);
+
 router.get('/user-info', getUserInfo)
 router.get('/users', getUsers);
 router.get('/stats', getUserStats);
