@@ -77,8 +77,12 @@ let io;
     app.use(helmet());
     // app.use(compression());
 
-    const originUrl = process.env.ORIGIN_URL || "http://localhost:8080";
-    app.use(cors({ origin: originUrl, credentials: true }));
+    const allowedOrigins = [
+      "http://localhost:8080", // your dev frontend
+      "http://192.168.0.98:8080", // frontend accessed via LAN IP
+    ];
+
+    app.use(cors({ origin: true, credentials: true }));
 
     app.use(
       "/images",
@@ -138,7 +142,9 @@ let io;
     });
 
     // Start server
-    server.listen(port, () => logger.info(`Server running on port ${port}`));
+    server.listen(port, "0.0.0.0", () => {
+      logger.info(`🚀 Server running at http://0.0.0.0:${port}`);
+    });
 
     // Graceful shutdown
     const shutdown = (signal) => async () => {
