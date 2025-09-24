@@ -32,6 +32,12 @@ model User {
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   tnas       TNA[]     @relation(name: "TNAtoMerchandiser") // One-to-many relation
 
+  // Add opposite relations for createdBy
+  createdTnas            TNA[]              @relation("UserCreatedTnas")
+  createdCadDesigns      CadDesign[]        @relation("UserCreatedCadDesigns")
+  createdFabricBookings  FabricBooking[]    @relation("UserCreatedFabricBookings")
+  createdSampleDevelopments SampleDevelopment[] @relation("UserCreatedSampleDevelopments")
+
   @@map("users")
 }
 
@@ -66,10 +72,13 @@ enum sampleType {
 
 model TNA {
   id                String     @id @default(auto()) @map("_id") @db.ObjectId
+  createdById       String?    @db.ObjectId
+  createdBy         User?      @relation("UserCreatedTnas", fields: [createdById], references: [id])
   buyer             Buyer?     @relation(fields: [buyerId], references: [id], name: "TNAtoBuyer")
   buyerId           String?    @db.ObjectId // One-to-many, no @unique
   style             String
   itemName          String
+  itemImage         String?
   sampleSendingDate DateTime
   orderDate         DateTime
   merchandiser      User?      @relation(fields: [userId], references: [id], name: "TNAtoMerchandiser")
@@ -120,6 +129,8 @@ model Department {
 
 model CadDesign {
   id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  createdById           String?   @db.ObjectId
+  createdBy             User?     @relation("UserCreatedCadDesigns", fields: [createdById], references: [id])
   style                 String
   fileReceiveDate       DateTime
   completeDate          DateTime
@@ -134,6 +145,8 @@ model CadDesign {
 
 model FabricBooking {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdById       String?  @db.ObjectId
+  createdBy         User?    @relation("UserCreatedFabricBookings", fields: [createdById], references: [id])
   style             String
   bookingDate       DateTime
   receiveDate       DateTime
@@ -147,6 +160,8 @@ model FabricBooking {
 
 model SampleDevelopment {
   id                       String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdById              String?  @db.ObjectId
+  createdBy                User?    @relation("UserCreatedSampleDevelopments", fields: [createdById], references: [id])
   style                    String
   samplemanName            String
   sampleReceiveDate        DateTime
