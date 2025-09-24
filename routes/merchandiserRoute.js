@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireAuth } from '../middlewares/authMiddleware.js';
-import { createBuyer, createDepartment, createTna, getBuyers, getDepartments, getMerchandisers } from '../controllers/merchandiserController.js';
+import { createBuyer, createDepartment, getBuyers, getDepartments, getMerchandisers } from '../controllers/merchandiserController.js';
+import { createTna } from '../controllers/tnaController.js';
 
 const merchandiserRoute = express.Router();
 
