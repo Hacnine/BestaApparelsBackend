@@ -5,16 +5,19 @@ const prisma = new PrismaClient();
 export async function getTNAs(req, res) {
   try {
     const { status, merchandiser, buyer, style, search, page = 1, pageSize = 10 } = req.query;
-    const where = {};
+    const where = {
+      // Only return TNAs created by the current user
+      createdById: req.user && req.user.id ? req.user.id : undefined,
+    };
     if (status && status !== 'all') where.status = status;
-    if (merchandiser) where.merchandiser = merchandiser;
-    if (buyer) where.buyer = buyer;
+    if (merchandiser) where.userId = merchandiser; // merchandiser is userId
+    if (buyer) where.buyerId = buyer; // buyer is buyerId
     if (style) where.style = style;
     if (search) {
       where.OR = [
-        { orderNumber: { contains: search, mode: 'insensitive' } },
-        { buyer: { contains: search, mode: 'insensitive' } },
-        { style: { contains: search, mode: 'insensitive' } }
+        { style: { contains: search, mode: 'insensitive' } },
+        { itemName: { contains: search, mode: 'insensitive' } },
+        { buyer: { name: { contains: search, mode: 'insensitive' } } }
       ];
     }
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
@@ -70,15 +73,93 @@ export async function getTNAs(req, res) {
 }
 
 // Create TNA
-export async function createTNA(req, res) {
+export const createTna = async (req, res) => {
   try {
-    const data = req.body;
-    const tna = await prisma.tNA.create({ data });
-    res.status(201).json(tna);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    const {
+      buyerId,
+      style,
+      itemName,
+      itemImage,
+      sampleSendingDate,
+      orderDate,
+      status,
+      sampleType = "DVP",
+    } = req.body;
+    const userId = req.user.id;
+
+    if (
+      !buyerId ||
+      !style ||
+      !itemName ||
+      !sampleSendingDate ||
+      !orderDate ||
+      !userId ||
+      !sampleType
+    ) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Validate date formats
+    if (isNaN(Date.parse(sampleSendingDate)) || isNaN(Date.parse(orderDate))) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+
+    // Check if buyerId exists
+    const buyerExists = await prisma.buyer.findUnique({
+      where: { id: buyerId },
+    });
+    if (!buyerExists) {
+      return res.status(404).json({ error: "Buyer not found" });
+    }
+
+    // Check if userId exists and is a merchandiser
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!userExists) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    if (userExists.role !== "MERCHANDISER") {
+      return res.status(403).json({ error: "User must be a merchandiser" });
+    }
+
+    // Check authentication directly:
+    if (!(req.user && req.user.id)) {
+      return res.status(400).json({ error: "User not authenticated. Cannot create TNA without createdById." });
+    }
+    
+    // Create new TNA
+    const tna = await prisma.tNA.create({
+      data: {
+        buyerId,
+        style,
+        itemName,
+        itemImage, 
+        sampleSendingDate: new Date(sampleSendingDate),
+        orderDate: new Date(orderDate),
+        userId,
+        status: status || "ACTIVE",
+        sampleType,
+        createdById: String(req.user.id),
+      },
+      include: {
+        buyer: true,
+        merchandiser: true,
+      },
+    });
+
+    res.status(201).json({
+      message: "TNA created successfully",
+      data: tna,
+    });
+  } catch (error) {
+    console.error("Error creating TNA:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      details: error.message,
+    });
   }
-}
+};
 
 // Update TNA
 export async function updateTNA(req, res) {
@@ -128,6 +209,11 @@ export async function getTNASummary(req, res) {
 
     // Build where clause for search
     const where = {};
+
+    // Only return TNAs created by the current user
+    if (req.user && req.user.id) {
+      where.createdById = req.user.id;
+    }
 
     // Search by name (style, itemName, buyerName, merchandiser)
     if (search) {
@@ -192,7 +278,6 @@ export async function getTNASummary(req, res) {
             receiveDate: true,
             actualBookingDate: true,
             actualReceiveDate: true
-            // omit createdAt, updatedAt
           }
         });
 
