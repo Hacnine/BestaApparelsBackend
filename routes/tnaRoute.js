@@ -1,18 +1,20 @@
 import express from 'express';
 import {
   getTNAs,
-  createTNA,
   updateTNA,
   deleteTNA,
   getDepartmentProgress,
   getTNASummary,
-  getTNASummaryCard
+  getTNASummaryCard,
+  createTna
 } from '../controllers/tnaController.js';
+import { requireAuth } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
+router.use(requireAuth)
 
 router.get('/', getTNAs);
-router.post('/', createTNA);
+router.post('/', createTna);
 router.put('/:id', updateTNA);
 router.delete('/:id', deleteTNA);
 router.get('/department-progress', getDepartmentProgress);
