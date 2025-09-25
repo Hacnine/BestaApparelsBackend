@@ -43,7 +43,7 @@ let io;
               customId: "EMP001",
               name: "Admin",
               email: "admin@tna.com",
-              status: "ACTIVE", // Matches Status enum
+              status: "ACTIVE",
               designation: "System Administrator",
               department: "IT",
             },
@@ -84,11 +84,27 @@ let io;
 
     app.use(cors({ origin: true, credentials: true }));
 
-    app.use(
-      "/images",
-      express.static(path.join(process.cwd(), "public/images"))
-    );
-    app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+    // Always set CORS headers for /uploads (for all HTTP methods and responses)
+    app.use("/uploads", (req, res, next) => {
+      res.setHeader("Access-Control-Allow-Origin", "*"); // Or restrict to your frontend origin
+      res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+      // For preflight requests
+      if (req.method === "OPTIONS") {
+        res.sendStatus(204);
+        return;
+      }
+      next();
+    });
+
+    // Serve static files with CORS headers
+    app.use("/uploads", express.static(path.join(process.cwd(), "uploads"), {
+      setHeaders: (res) => {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+      }
+    }));
 
     app.use(express.json({ limit: "10mb" }));
     app.use(express.urlencoded({ extended: true }));
@@ -168,3 +184,4 @@ let io;
 })();
 
 export { app, io };
+

@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 export const createCadApproval = async (req, res) => {
   try {
     const { style, fileReceiveDate, completeDate, cadMasterName } = req.body;
-    console.log(req.body);
+
     if (!style || !fileReceiveDate || !completeDate) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -14,6 +14,7 @@ export const createCadApproval = async (req, res) => {
         fileReceiveDate: new Date(fileReceiveDate),
         completeDate: new Date(completeDate),
         CadMasterName: cadMasterName || null,
+        createdBy: { connect: { id: req.user.id } },
       },
     });
     res.status(201).json({ message: 'CAD Approval created successfully', data: cadApproval });
@@ -28,14 +29,18 @@ export const getCadApproval = async (req, res) => {
     const { page = 1, pageSize = 10 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
     const take = parseInt(pageSize);
-
+    const where = {
+      // Only return cad approvals created by the current user
+      createdById: req.user && req.user.id ? req.user.id : undefined,
+    };
     const [cadApprovals, total] = await Promise.all([
       prisma.cadDesign.findMany({
         skip,
         take,
-        orderBy: { createdAt: 'desc' }
+        where,
+        orderBy: { createdAt: 'desc' },
       }),
-      prisma.cadDesign.count()
+      prisma.cadDesign.count({ where }),
     ]);
 
     res.json({
@@ -43,7 +48,7 @@ export const getCadApproval = async (req, res) => {
       page: parseInt(page),
       pageSize: parseInt(pageSize),
       total,
-      totalPages: Math.ceil(total / pageSize)
+      totalPages: Math.ceil(total / pageSize),
     });
   } catch (error) {
     console.error('Error fetching CAD Approvals:', error);
