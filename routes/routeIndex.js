@@ -20,7 +20,7 @@ apiRoute.use("/audit-logs", auditRouter);
 apiRoute.use("/dashboard", dashboardRouter);
 apiRoute.use("/merchandiser", merchandiserRoute);
 apiRoute.use("/cad", cadRoute);
-apiRoute.use("/sample-development", sampleDevelopmentRoute);
+apiRoute.use("/sample-developments", sampleDevelopmentRoute);
 apiRoute.use("/fabric-booking", fabricBookingRoute);
 apiRoute.use("/dhl-tracking", dhlTrackingRoute);
 
