@@ -90,7 +90,7 @@ export const updateSampleDevelopment = async (req, res) => {
       actualSampleCompleteDate,
       sampleQuantity,
     } = req.body;
-
+console.log("Updating Sample Development ID:", id, "with data:", req.body);
     // Build update data object only with provided fields
     const data = {};
     if (style !== undefined) data.style = style;
