@@ -15,9 +15,9 @@ sampleDevelopmentRoute.post("/", createSampleDevelopment);
 sampleDevelopmentRoute.get("/", getSampleDevelopment);
 
 // Update
-sampleDevelopmentRoute.put("/:id", updateSampleDevelopment);
+sampleDevelopmentRoute.patch("/update/:id", updateSampleDevelopment);
 
 // Delete
-sampleDevelopmentRoute.delete("/:id", deleteSampleDevelopment);
+sampleDevelopmentRoute.delete("/delete/:id", deleteSampleDevelopment);
 
 export default sampleDevelopmentRoute;
