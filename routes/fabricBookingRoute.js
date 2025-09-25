@@ -11,7 +11,7 @@ const fabricBookingRoute = express.Router();
 fabricBookingRoute.use(requireAuth);
 fabricBookingRoute.post("/", createFabricBooking);
 fabricBookingRoute.get("/", getFabricBooking);
-fabricBookingRoute.put("/:id", updateFabricBooking);
-fabricBookingRoute.delete("/:id", deleteFabricBooking);
+fabricBookingRoute.put("/update/:id", updateFabricBooking);
+fabricBookingRoute.delete("/delete/:id", deleteFabricBooking);
 
 export default fabricBookingRoute;
