@@ -29,6 +29,7 @@ export const createSampleDevelopment = async (req, res) => {
         sampleReceiveDate: new Date(sampleReceiveDate),
         sampleCompleteDate: new Date(sampleCompleteDate),
         sampleQuantity: Number(sampleQuantity),
+        createdBy: { connect: { id: req.user.id } },
       },
     });
 
@@ -48,17 +49,47 @@ export const createSampleDevelopment = async (req, res) => {
 // Get SampleDevelopment with pagination
 export const getSampleDevelopment = async (req, res) => {
   try {
-    const { page = 1, pageSize = 10 } = req.query;
+    const { page = 1, pageSize = 10, search, startDate, endDate } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
     const take = parseInt(pageSize);
+
+    // Build where clause
+    const where = {
+      // Only return cad approvals created by the current user
+      createdById: req.user && req.user.id ? req.user.id : undefined,
+    };
+
+    // Search by style or CadMasterName (case-insensitive)
+    if (search) {
+      where.OR = [
+        { style: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    // Filter by sampleReceiveDate range
+    if (startDate && endDate) {
+      where.sampleReceiveDate = {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      };
+    } else if (startDate) {
+      where.sampleReceiveDate = {
+        gte: new Date(startDate),
+      };
+    } else if (endDate) {
+      where.sampleReceiveDate = {
+        lte: new Date(endDate),
+      };
+    }
 
     const [sampleDevelopments, total] = await Promise.all([
       prisma.sampleDevelopment.findMany({
         skip,
         take,
+        where, 
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.sampleDevelopment.count(),
+      prisma.sampleDevelopment.count({ where }),
     ]);
 
     res.json({
