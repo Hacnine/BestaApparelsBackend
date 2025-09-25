@@ -12,6 +12,7 @@ export const createFabricBooking = async (req, res) => {
         style,
         bookingDate: new Date(bookingDate),
         receiveDate: new Date(receiveDate),
+        createdBy: { connect: { id: req.user.id } },
       },
     });
     res.status(201).json({
@@ -30,24 +31,48 @@ export const createFabricBooking = async (req, res) => {
 // Add getFabricBooking with pagination
 export const getFabricBooking = async (req, res) => {
   try {
-    const { page = 1, pageSize = 10 } = req.query;
+    const { page = 1, pageSize = 10, search, startDate, endDate } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
     const take = parseInt(pageSize);
 
-    // Debug: Fetch all records without pagination to check if any data exists
-    const allRecords = await prisma.fabricBooking.findMany();
-    console.log('All FabricBooking records in DB:', allRecords);
+    // Build where clause
+    const where = {
+      // Only return cad approvals created by the current user
+      createdById: req.user && req.user.id ? req.user.id : undefined,
+    };
 
-    // Debug: Fetch paginated records
+    // Search by style or CadMasterName (case-insensitive)
+    if (search) {
+      where.OR = [
+        { style: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    // Filter by bookingDate range
+    if (startDate && endDate) {
+      where.bookingDate = {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      };
+    } else if (startDate) {
+      where.bookingDate = {
+        gte: new Date(startDate),
+      };
+    } else if (endDate) {
+      where.bookingDate = {
+        lte: new Date(endDate),
+      };
+    }
     const [fabricBookings, total] = await Promise.all([
       prisma.fabricBooking.findMany({
         skip,
         take,
+        where,
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.fabricBooking.count(),
+
+      prisma.fabricBooking.count({ where }),
     ]);
-    console.log('Paginated FabricBookings:', fabricBookings);
 
     res.json({
       data: fabricBookings,
