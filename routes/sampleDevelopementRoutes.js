@@ -5,8 +5,10 @@ import {
   updateSampleDevelopment,
   deleteSampleDevelopment,
 } from "../controllers/sampleDevelopementController.js";
+import { requireAuth } from "../middlewares/authMiddleware.js";
 
 const sampleDevelopmentRoute = express.Router();
+sampleDevelopmentRoute.use(requireAuth);
 
 // Create
 sampleDevelopmentRoute.post("/", createSampleDevelopment);
