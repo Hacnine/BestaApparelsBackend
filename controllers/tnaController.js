@@ -1,23 +1,37 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
+import {
+  validateDates,
+  validateBuyer,
+  validateUserRole,
+  validateAuth,
+} from "../utils/validationUtils.js";
 const prisma = new PrismaClient();
 
 // Get all TNAs with optional filters
 export async function getTNAs(req, res) {
   try {
-    const { status, merchandiser, buyer, style, search, page = 1, pageSize = 10 } = req.query;
+    const {
+      status,
+      merchandiser,
+      buyer,
+      style,
+      search,
+      page = 1,
+      pageSize = 10,
+    } = req.query;
     const where = {
       // Only return TNAs created by the current user
       createdById: req.user && req.user.id ? req.user.id : undefined,
     };
-    if (status && status !== 'all') where.status = status;
+    if (status && status !== "all") where.status = status;
     if (merchandiser) where.userId = merchandiser; // merchandiser is userId
     if (buyer) where.buyerId = buyer; // buyer is buyerId
     if (style) where.style = style;
     if (search) {
       where.OR = [
-        { style: { contains: search, mode: 'insensitive' } },
-        { itemName: { contains: search, mode: 'insensitive' } },
-        { buyer: { name: { contains: search, mode: 'insensitive' } } }
+        { style: { contains: search, mode: "insensitive" } },
+        { itemName: { contains: search, mode: "insensitive" } },
+        { buyer: { name: { contains: search, mode: "insensitive" } } },
       ];
     }
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
@@ -30,6 +44,7 @@ export async function getTNAs(req, res) {
           id: true,
           style: true,
           itemName: true,
+          itemImage: true,
           sampleSendingDate: true,
           orderDate: true,
           status: true,
@@ -41,23 +56,23 @@ export async function getTNAs(req, res) {
               id: true,
               name: true,
               country: true,
-              buyerDepartmentId: true
-            }
+              buyerDepartmentId: true,
+            },
           },
           merchandiser: {
             select: {
               id: true,
               userName: true,
               role: true,
-              employeeId: true
-            }
-          }
+              employeeId: true,
+            },
+          },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         skip,
-        take
+        take,
       }),
-      prisma.tNA.count({ where })
+      prisma.tNA.count({ where }),
     ]);
 
     res.json({
@@ -65,7 +80,7 @@ export async function getTNAs(req, res) {
       page: parseInt(page),
       pageSize: parseInt(pageSize),
       total,
-      totalPages: Math.ceil(total / pageSize)
+      totalPages: Math.ceil(total / pageSize),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -99,48 +114,29 @@ export const createTna = async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Validate date formats
-    if (isNaN(Date.parse(sampleSendingDate)) || isNaN(Date.parse(orderDate))) {
-      return res.status(400).json({ error: "Invalid date format" });
+    // Use utility validation functions
+    if (
+      !validateAuth(req, res) ||
+      !(await validateDates(sampleSendingDate, orderDate, res)) ||
+      !(await validateBuyer(prisma, buyerId, res)) ||
+      !(await validateUserRole(prisma, userId, "MERCHANDISER", res))
+    ) {
+      return;
     }
 
-    // Check if buyerId exists
-    const buyerExists = await prisma.buyer.findUnique({
-      where: { id: buyerId },
-    });
-    if (!buyerExists) {
-      return res.status(404).json({ error: "Buyer not found" });
-    }
-
-    // Check if userId exists and is a merchandiser
-    const userExists = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-    if (!userExists) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    if (userExists.role !== "MERCHANDISER") {
-      return res.status(403).json({ error: "User must be a merchandiser" });
-    }
-
-    // Check authentication directly:
-    if (!(req.user && req.user.id)) {
-      return res.status(400).json({ error: "User not authenticated. Cannot create TNA without createdById." });
-    }
-    
     // Create new TNA
     const tna = await prisma.tNA.create({
       data: {
-        buyerId,
+        buyer: { connect: { id: buyerId } },
         style,
         itemName,
-        itemImage, 
+        itemImage,
         sampleSendingDate: new Date(sampleSendingDate),
         orderDate: new Date(orderDate),
-        userId,
+        merchandiser: { connect: { id: userId } },
         status: status || "ACTIVE",
         sampleType,
-        createdById: String(req.user.id),
+        createdBy: { connect: { id: req.user.id } },
       },
       include: {
         buyer: true,
@@ -153,10 +149,11 @@ export const createTna = async (req, res) => {
       data: tna,
     });
   } catch (error) {
-    console.error("Error creating TNA:", error);
+    console.error("Error creating TNA:", error, req.body);
     res.status(500).json({
       error: "Internal server error",
       details: error.message,
+      stack: error.stack,
     });
   }
 };
@@ -190,9 +187,9 @@ export async function getDepartmentProgress(req, res) {
     // Example: group by department and calculate progress
     // You may need to adjust this based on your actual schema
     const departments = await prisma.tNA.groupBy({
-      by: ['currentStage'],
+      by: ["currentStage"],
       _count: { id: true },
-      _avg: { percentage: true }
+      _avg: { percentage: true },
     });
     res.json(departments);
   } catch (err) {
@@ -221,7 +218,9 @@ export async function getTNASummary(req, res) {
         { style: { contains: search, mode: "insensitive" } },
         { itemName: { contains: search, mode: "insensitive" } },
         { buyer: { name: { contains: search, mode: "insensitive" } } },
-        { merchandiser: { userName: { contains: search, mode: "insensitive" } } }
+        {
+          merchandiser: { userName: { contains: search, mode: "insensitive" } },
+        },
       ];
     }
 
@@ -229,15 +228,15 @@ export async function getTNASummary(req, res) {
     if (startDate && endDate) {
       where.sampleSendingDate = {
         gte: new Date(startDate),
-        lte: new Date(endDate)
+        lte: new Date(endDate),
       };
     } else if (startDate) {
       where.sampleSendingDate = {
-        gte: new Date(startDate)
+        gte: new Date(startDate),
       };
     } else if (endDate) {
       where.sampleSendingDate = {
-        lte: new Date(endDate)
+        lte: new Date(endDate),
       };
     }
 
@@ -256,16 +255,16 @@ export async function getTNASummary(req, res) {
         sampleType: true,
         userId: true,
         // omit: createdAt, updatedAt, status, buyerId
-      }
+      },
     });
 
     const total = await prisma.tNA.count({ where });
 
     const summary = await Promise.all(
-      tnas.map(async tna => {
+      tnas.map(async (tna) => {
         // Get all cadDesign fields for the matching style
         const cad = await prisma.cadDesign.findFirst({
-          where: { style: tna.style }
+          where: { style: tna.style },
         });
 
         // Get FabricBooking for the style, omit createdAt and updatedAt
@@ -277,8 +276,8 @@ export async function getTNASummary(req, res) {
             bookingDate: true,
             receiveDate: true,
             actualBookingDate: true,
-            actualReceiveDate: true
-          }
+            actualReceiveDate: true,
+          },
         });
 
         // Get SampleDevelopment for the style, omit createdAt and updatedAt
@@ -292,8 +291,8 @@ export async function getTNASummary(req, res) {
             sampleCompleteDate: true,
             actualSampleReceiveDate: true,
             actualSampleCompleteDate: true,
-            sampleQuantity: true
-          }
+            sampleQuantity: true,
+          },
         });
 
         // Get DHLTracking for the style, only needed fields
@@ -302,8 +301,8 @@ export async function getTNASummary(req, res) {
           select: {
             date: true,
             trackingNumber: true,
-            isComplete: true
-          }
+            isComplete: true,
+          },
         });
 
         // If not found, set to null
@@ -344,23 +343,23 @@ export async function getTNASummaryCard(req, res) {
         id: true,
         style: true,
         sampleSendingDate: true,
-      }
+      },
     });
 
     // Fetch all DHLTracking records for these styles
-    const styles = tnas.map(tna => tna.style);
+    const styles = tnas.map((tna) => tna.style);
     const dhlTrackings = await prisma.dHLTracking.findMany({
       where: { style: { in: styles } },
       select: {
         style: true,
         isComplete: true,
         date: true,
-      }
+      },
     });
 
     // Build a map for quick lookup
     const dhlMap = {};
-    dhlTrackings.forEach(dhl => {
+    dhlTrackings.forEach((dhl) => {
       dhlMap[dhl.style] = dhl;
     });
 
@@ -369,7 +368,7 @@ export async function getTNASummaryCard(req, res) {
     let overdue = 0;
 
     const today = new Date();
-    tnas.forEach(tna => {
+    tnas.forEach((tna) => {
       const dhl = dhlMap[tna.style];
       if (dhl && dhl.isComplete) {
         completed += 1;
@@ -394,10 +393,11 @@ export async function getTNASummaryCard(req, res) {
       onProcess,
       completed,
       overdue,
-      total: tnas.length
+      total: tnas.length,
     });
   } catch (err) {
     console.error("getTNASummaryCard error:", err);
     res.status(500).json({ error: err.message });
   }
 }
+
