@@ -207,8 +207,12 @@ export async function getTNASummary(req, res) {
     // Build where clause for search
     const where = {};
 
-    // Only return TNAs created by the current user
-    if (req.user && req.user.id) {
+    // Only return TNAs created by the current user if role is MERCHANDISER
+    if (
+      req.user &&
+      req.user.id &&
+      req.user.role === "MERCHANDISER"
+    ) {
       where.createdById = req.user.id;
     }
 
