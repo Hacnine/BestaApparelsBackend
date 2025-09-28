@@ -253,6 +253,7 @@ export async function getTNASummary(req, res) {
         buyer: { select: { name: true } },
         style: true,
         itemName: true,
+        itemImage: true,
         sampleSendingDate: true,
         orderDate: true,
         merchandiser: { select: { userName: true } },
@@ -260,6 +261,7 @@ export async function getTNASummary(req, res) {
         userId: true,
         // omit: createdAt, updatedAt, status, buyerId
       },
+      orderBy: { createdAt: "desc" },
     });
 
     const total = await prisma.tNA.count({ where });
@@ -361,10 +363,11 @@ export async function getTNASummaryCard(req, res) {
       },
     });
 
-    // Build a map for quick lookup
+    // Build a map for quick lookup (style -> array of DHLTracking)
     const dhlMap = {};
     dhlTrackings.forEach((dhl) => {
-      dhlMap[dhl.style] = dhl;
+      if (!dhlMap[dhl.style]) dhlMap[dhl.style] = [];
+      dhlMap[dhl.style].push(dhl);
     });
 
     let onProcess = 0;
@@ -373,18 +376,24 @@ export async function getTNASummaryCard(req, res) {
 
     const today = new Date();
     tnas.forEach((tna) => {
-      const dhl = dhlMap[tna.style];
-      if (dhl && dhl.isComplete) {
+      const dhlArr = dhlMap[tna.style] || [];
+      const isAnyComplete = dhlArr.some(dhl => dhl.isComplete);
+      // Print style, DHLTracking array, and isAnyComplete
+      // console.log(`Style: ${tna.style}, DHLTrackings:`, dhlArr, `isAnyComplete: ${isAnyComplete}`);
+
+      if (isAnyComplete) {
         completed += 1;
-      } else if (dhl && dhl.isComplete === false) {
-        // Check if overdue: sampleSendingDate < today
+        return; // Skip further checks for this style
+      }
+      if (dhlArr.length > 0) {
+        // At least one DHLTracking, none complete
         if (tna.sampleSendingDate && new Date(tna.sampleSendingDate) < today) {
           overdue += 1;
         } else {
           onProcess += 1;
         }
       } else {
-        // No DHLTracking or isComplete is not true
+        // No DHLTracking: treat as not complete
         if (tna.sampleSendingDate && new Date(tna.sampleSendingDate) < today) {
           overdue += 1;
         } else {
