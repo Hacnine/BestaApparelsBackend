@@ -205,7 +205,7 @@ export async function getDepartmentProgress(req, res) {
 // Get TNA summary (omit updatedAt, createdAt, status)
 export async function getTNASummary(req, res) {
   try {
-    const { page = 1, pageSize = 10, search, startDate, endDate } = req.query;
+    const { page = 1, pageSize = 10, search, startDate, endDate, completed = "false" } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
     const take = parseInt(pageSize);
 
@@ -249,9 +249,8 @@ export async function getTNASummary(req, res) {
       };
     }
 
-    const tnas = await prisma.tNA.findMany({
-      skip,
-      take,
+    // Fetch all TNAs (before pagination) to filter by DHLTracking if needed
+    let allTnas = await prisma.tNA.findMany({
       where,
       select: {
         id: true,
@@ -264,15 +263,54 @@ export async function getTNASummary(req, res) {
         merchandiser: { select: { userName: true } },
         sampleType: true,
         userId: true,
-        // omit: createdAt, updatedAt, status, buyerId
       },
       orderBy: { createdAt: "desc" },
     });
 
-    const total = await prisma.tNA.count({ where });
+    // If completed filter is provided, filter TNAs by DHLTracking's isComplete
+    if (completed === "true" || completed === "false") {
+      const styles = allTnas.map(tna => tna.style);
+      // Get all DHLTracking for these styles
+      const dhlTrackings = await prisma.dHLTracking.findMany({
+        where: { style: { in: styles } },
+        select: { style: true, isComplete: true },
+      });
+      // Build a map: style -> array of isComplete values
+      const dhlMap = new Map();
+      dhlTrackings.forEach(dhl => {
+        if (!dhlMap.has(dhl.style)) dhlMap.set(dhl.style, []);
+        dhlMap.get(dhl.style).push(dhl.isComplete);
+      });
+
+      if (completed === "true") {
+        // Only styles where at least one DHLTracking isComplete === true
+        const completedStyles = new Set(
+          Array.from(dhlMap.entries())
+            .filter(([style, arr]) => arr.some(isC => isC === true))
+            .map(([style]) => style)
+        );
+        allTnas = allTnas.filter(tna => completedStyles.has(tna.style));
+      } else {
+        // Only styles where all DHLTracking isComplete === false OR no DHLTracking exists
+        const incompleteStyles = new Set(
+          allTnas
+            .map(tna => tna.style)
+            .filter(style => {
+              if (!dhlMap.has(style)) return true; // no DHLTracking
+              const arr = dhlMap.get(style);
+              return arr.every(isC => isC === false);
+            })
+        );
+        allTnas = allTnas.filter(tna => incompleteStyles.has(tna.style));
+      }
+    }
+
+    // Pagination after filtering
+    const total = allTnas.length;
+    const pagedTnas = allTnas.slice(skip, skip + take);
 
     const summary = await Promise.all(
-      tnas.map(async (tna) => {
+      pagedTnas.map(async (tna) => {
         // Get all cadDesign fields for the matching style
         const cad = await prisma.cadDesign.findFirst({
           where: { style: tna.style },
