@@ -162,7 +162,12 @@ export const createTna = async (req, res) => {
 export async function updateTNA(req, res) {
   try {
     const { id } = req.params;
-    const data = req.body;
+    let data = req.body;
+
+    // Remove empty string for ObjectId fields to avoid malformed ObjectId error
+    if (data.buyerId === "") delete data.buyerId;
+    if (data.userId === "") delete data.userId;
+
     const tna = await prisma.tNA.update({ where: { id }, data });
     res.json(tna);
   } catch (err) {
