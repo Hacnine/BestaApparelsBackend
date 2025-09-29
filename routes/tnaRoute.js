@@ -4,6 +4,7 @@ import {
   updateTNA,
   deleteTNA,
   getDepartmentProgress,
+  getDepartmentProgressV2,
   getTNASummary,
   getTNASummaryCard,
   createTna
@@ -33,6 +34,7 @@ router.post('/', createTna);
 router.put('/:id', updateTNA);
 router.delete('/:id', deleteTNA);
 router.get('/department-progress', getDepartmentProgress);
+router.get('/department-progress-v2', getDepartmentProgressV2);
 router.get('/get-tna-summary', getTNASummary);
 router.get('/get-tna-summary-card', getTNASummaryCard);
 

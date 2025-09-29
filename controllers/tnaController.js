@@ -348,8 +348,19 @@ export async function getTNASummary(req, res) {
 // Summary Card Function
 export async function getTNASummaryCard(req, res) {
   try {
+    // Build where clause for filtering TNAs
+    const where = {};
+    if (
+      req.user &&
+      req.user.id &&
+      req.user.role === "MERCHANDISER"
+    ) {
+      where.createdById = req.user.id;
+    }
+
     // Fetch all TNAs with style, sampleSendingDate, and related DHLTracking
     const tnas = await prisma.tNA.findMany({
+      where,
       select: {
         id: true,
         style: true,
@@ -383,22 +394,18 @@ export async function getTNASummaryCard(req, res) {
     tnas.forEach((tna) => {
       const dhlArr = dhlMap[tna.style] || [];
       const isAnyComplete = dhlArr.some(dhl => dhl.isComplete);
-      // Print style, DHLTracking array, and isAnyComplete
-      // console.log(`Style: ${tna.style}, DHLTrackings:`, dhlArr, `isAnyComplete: ${isAnyComplete}`);
 
       if (isAnyComplete) {
         completed += 1;
-        return; // Skip further checks for this style
+        return;
       }
       if (dhlArr.length > 0) {
-        // At least one DHLTracking, none complete
         if (tna.sampleSendingDate && new Date(tna.sampleSendingDate) < today) {
           overdue += 1;
         } else {
           onProcess += 1;
         }
       } else {
-        // No DHLTracking: treat as not complete
         if (tna.sampleSendingDate && new Date(tna.sampleSendingDate) < today) {
           overdue += 1;
         } else {
@@ -415,6 +422,50 @@ export async function getTNASummaryCard(req, res) {
     });
   } catch (err) {
     console.error("getTNASummaryCard error:", err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// Department Progress API (dynamic)
+export async function getDepartmentProgressV2(req, res) {
+  try {
+    // The error is because there is no 'currentStage' field in your TNA model.
+    // You must use only fields that exist in your Prisma schema.
+    // For demonstration, let's use 'sampleType' as a stage-like field.
+    // You can adjust the stages array to match your actual workflow.
+
+    const stages = [
+      { key: "DVP", label: "Merchandising" },
+      { key: "PP1", label: "CAD Room" },
+      { key: "PP2", label: "Sample Fabric" },
+      { key: "PP3", label: "Sample Room" }
+      // Add more if needed, matching your sampleType enum
+    ];
+
+    // For each stage, count total and completed TNAs
+    const progress = await Promise.all(
+      stages.map(async (stage) => {
+        // Total TNAs in this stage (sampleType)
+        const total = await prisma.tNA.count({
+          where: { sampleType: stage.key }
+        });
+        // Completed TNAs in this stage (status = INACTIVE, as you have ACTIVE/CANCELLED/INACTIVE)
+        // Adjust this logic to your actual "completed" status if needed
+        const completed = await prisma.tNA.count({
+          where: { sampleType: stage.key, status: "INACTIVE" }
+        });
+        const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+        return {
+          department: stage.label,
+          completed,
+          total,
+          percentage
+        };
+      })
+    );
+
+    res.json({ data: progress });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 }
