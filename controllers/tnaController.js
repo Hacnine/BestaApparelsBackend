@@ -429,42 +429,101 @@ export async function getTNASummaryCard(req, res) {
 // Department Progress API (dynamic)
 export async function getDepartmentProgressV2(req, res) {
   try {
-    // The error is because there is no 'currentStage' field in your TNA model.
-    // You must use only fields that exist in your Prisma schema.
-    // For demonstration, let's use 'sampleType' as a stage-like field.
-    // You can adjust the stages array to match your actual workflow.
+    // Only TNAs visible to the user (MERCHANDISER: own, others: all)
+    const where = {};
+    if (req.user && req.user.id && req.user.role === "MERCHANDISER") {
+      where.createdById = req.user.id;
+    }
 
-    const stages = [
-      { key: "DVP", label: "Merchandising" },
-      { key: "PP1", label: "CAD Room" },
-      { key: "PP2", label: "Sample Fabric" },
-      { key: "PP3", label: "Sample Room" }
-      // Add more if needed, matching your sampleType enum
+    // Get all TNAs (style, id)
+    const tnas = await prisma.tNA.findMany({
+      where,
+      select: { id: true, style: true }
+    });
+    const styles = tnas.map(tna => tna.style);
+
+    // Fetch all related records in batch
+    const [
+      cadDesigns,
+      fabricBookings,
+      sampleDevelopments,
+      dhlTrackings
+    ] = await Promise.all([
+      prisma.cadDesign.findMany({
+        where: { style: { in: styles } },
+        select: { style: true, finalCompleteDate: true }
+      }),
+      prisma.fabricBooking.findMany({
+        where: { style: { in: styles } },
+        select: { style: true, actualReceiveDate: true }
+      }),
+      prisma.sampleDevelopment.findMany({
+        where: { style: { in: styles } },
+        select: { style: true, actualSampleCompleteDate: true }
+      }),
+      prisma.dHLTracking.findMany({
+        where: { style: { in: styles } },
+        select: { style: true }
+      })
+    ]);
+
+    // Build lookup maps for quick access
+    const cadMap = new Map();
+    cadDesigns.forEach(cad => {
+      if (!cadMap.has(cad.style)) cadMap.set(cad.style, []);
+      cadMap.get(cad.style).push(cad);
+    });
+    const fabricMap = new Map();
+    fabricBookings.forEach(fb => {
+      if (!fabricMap.has(fb.style)) fabricMap.set(fb.style, []);
+      fabricMap.get(fb.style).push(fb);
+    });
+    const sampleMap = new Map();
+    sampleDevelopments.forEach(sd => {
+      if (!sampleMap.has(sd.style)) sampleMap.set(sd.style, []);
+      sampleMap.get(sd.style).push(sd);
+    });
+    const dhlSet = new Set(dhlTrackings.map(dhl => dhl.style));
+
+    // Progress calculation
+    const departments = [
+      {
+        department: "Merchandising",
+        isComplete: (style) => dhlSet.has(style)
+      },
+      {
+        department: "CAD",
+        isComplete: (style) =>
+          (cadMap.get(style) || []).some(cad => !!cad.finalCompleteDate)
+      },
+      {
+        department: "Fabric",
+        isComplete: (style) =>
+          (fabricMap.get(style) || []).some(fb => !!fb.actualReceiveDate)
+      },
+      {
+        department: "Sample",
+        isComplete: (style) =>
+          (sampleMap.get(style) || []).some(sd => !!sd.actualSampleCompleteDate)
+      }
     ];
 
-    // For each stage, count total and completed TNAs
-    const progress = await Promise.all(
-      stages.map(async (stage) => {
-        // Total TNAs in this stage (sampleType)
-        const total = await prisma.tNA.count({
-          where: { sampleType: stage.key }
-        });
-        // Completed TNAs in this stage (status = INACTIVE, as you have ACTIVE/CANCELLED/INACTIVE)
-        // Adjust this logic to your actual "completed" status if needed
-        const completed = await prisma.tNA.count({
-          where: { sampleType: stage.key, status: "INACTIVE" }
-        });
-        const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-        return {
-          department: stage.label,
-          completed,
-          total,
-          percentage
-        };
-      })
-    );
+    const result = departments.map(dept => {
+      let completed = 0;
+      tnas.forEach(tna => {
+        if (dept.isComplete(tna.style)) completed += 1;
+      });
+      const total = tnas.length;
+      const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
+      return {
+        department: dept.department,
+        completed,
+        total,
+        percentage
+      };
+    });
 
-    res.json({ data: progress });
+    res.json({ data: result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
