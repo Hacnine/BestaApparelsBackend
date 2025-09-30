@@ -388,11 +388,7 @@ export async function getTNASummaryCard(req, res) {
   try {
     // Build where clause for filtering TNAs
     const where = {};
-    if (
-      req.user &&
-      req.user.id &&
-      req.user.role === "MERCHANDISER"
-    ) {
+    if (req.user && req.user.id && req.user.role === "MERCHANDISER") {
       where.createdById = req.user.id;
     }
 
@@ -429,22 +425,30 @@ export async function getTNASummaryCard(req, res) {
     let overdue = 0;
 
     const today = new Date();
+    today.setHours(0, 0, 0, 0); 
+
     tnas.forEach((tna) => {
       const dhlArr = dhlMap[tna.style] || [];
-      const isAnyComplete = dhlArr.some(dhl => dhl.isComplete);
+      const isAnyComplete = dhlArr.some((dhl) => dhl.isComplete);
 
       if (isAnyComplete) {
         completed += 1;
         return;
       }
+      // Normalize sampleSendingDate to midnight
+      const sampleDate = tna.sampleSendingDate
+        ? new Date(tna.sampleSendingDate)
+        : null;
+      if (sampleDate) sampleDate.setHours(0, 0, 0, 0);
+
       if (dhlArr.length > 0) {
-        if (tna.sampleSendingDate && new Date(tna.sampleSendingDate) < today) {
+        if (sampleDate && sampleDate < today) {
           overdue += 1;
         } else {
           onProcess += 1;
         }
       } else {
-        if (tna.sampleSendingDate && new Date(tna.sampleSendingDate) < today) {
+        if (sampleDate && sampleDate < today) {
           overdue += 1;
         } else {
           onProcess += 1;
