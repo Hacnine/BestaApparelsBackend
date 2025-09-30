@@ -19,6 +19,21 @@ services:
     volumes:
       - redis_data:/data
 
+  mysql:
+    image: mysql:8
+    container_name: besta-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: besta
+      MYSQL_USER: bestauser
+      MYSQL_PASSWORD: bestapass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
 volumes:
   mongo_data:
   redis_data:
+  mysql_data:

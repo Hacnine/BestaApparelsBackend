@@ -10,8 +10,8 @@ export async function getAuditLogs(req, res) {
     if (userRole && userRole !== 'all') where.userRole = userRole;
     if (search) {
       where.OR = [
-        { user: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } }
+        { user: { contains: search } },
+        { description: { contains: search } }
       ];
     }
     // Time range filter (example for last X days)

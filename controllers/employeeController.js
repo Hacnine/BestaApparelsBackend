@@ -37,10 +37,10 @@ export const getEmployees = async (req, res) => {
     const where = {};
     if (search) {
       where.OR = [
-        { customId: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { department: { contains: search, mode: 'insensitive' } },
-        { designation: { contains: search, mode: 'insensitive' } },
+        { customId: { contains: search } },
+        { email: { contains: search } },
+        { department: { contains: search } },
+        { designation: { contains: search } },
       ];
     }
 

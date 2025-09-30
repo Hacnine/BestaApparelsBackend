@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -24,11 +24,11 @@ enum Status {
 }
 
 model User {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  id         Int       @id @default(autoincrement())
   userName   String    @unique
   password   String
   role       Role
-  employeeId String    @unique @db.ObjectId
+  employeeId Int       @unique
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   tnas       TNA[]     @relation(name: "TNAtoMerchandiser") // One-to-many relation
 
@@ -42,7 +42,7 @@ model User {
 }
 
 model Employee {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  id          Int     @id @default(autoincrement())
   customId    String  @unique
   name        String
   email       String  @unique
@@ -71,11 +71,11 @@ enum sampleType {
 }
 
 model TNA {
-  id                String     @id @default(auto()) @map("_id") @db.ObjectId
-  createdById       String?    @db.ObjectId
+  id                Int        @id @default(autoincrement())
+  createdById       Int?
   createdBy         User?      @relation("UserCreatedTnas", fields: [createdById], references: [id])
   buyer             Buyer?     @relation(fields: [buyerId], references: [id], name: "TNAtoBuyer")
-  buyerId           String?    @db.ObjectId // One-to-many, no @unique
+  buyerId           Int?       // One-to-many, no @unique
   style             String
   itemName          String
   itemImage         String?
@@ -84,7 +84,7 @@ model TNA {
   merchandiser      User?      @relation(fields: [userId], references: [id], name: "TNAtoMerchandiser")
   status            TNAStatus  @default(ACTIVE)
   sampleType        sampleType
-  userId            String?    @db.ObjectId // No @unique for one-to-many
+  userId            Int?       // No @unique for one-to-many
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -92,7 +92,7 @@ model TNA {
 }
 
 model AuditLog {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          Int      @id @default(autoincrement())
   timestamp   DateTime @default(now())
   user        String
   userRole    String
@@ -108,18 +108,18 @@ model AuditLog {
 }
 
 model Buyer {
-  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  id                Int         @id @default(autoincrement())
   name              String
   country           String
   buyerDepartments  Department? @relation("Buyer_buyerDepartments", fields: [buyerDepartmentId], references: [id])
-  buyerDepartmentId String?     @db.ObjectId
+  buyerDepartmentId Int?
   tnas              TNA[]       @relation(name: "TNAtoBuyer")
 
   @@map("buyers")
 }
 
 model Department {
-  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  id            Int     @id @default(autoincrement())
   name          String
   contactPerson String
   buyers        Buyer[] @relation("Buyer_buyerDepartments")
@@ -128,8 +128,8 @@ model Department {
 }
 
 model CadDesign {
-  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
-  createdById           String?   @db.ObjectId
+  id                    Int       @id @default(autoincrement())
+  createdById           Int?
   createdBy             User?     @relation("UserCreatedCadDesigns", fields: [createdById], references: [id])
   style                 String
   fileReceiveDate       DateTime
@@ -144,8 +144,8 @@ model CadDesign {
 }
 
 model FabricBooking {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  createdById       String?  @db.ObjectId
+  id                Int      @id @default(autoincrement())
+  createdById       Int?
   createdBy         User?    @relation("UserCreatedFabricBookings", fields: [createdById], references: [id])
   style             String
   bookingDate       DateTime
@@ -159,8 +159,8 @@ model FabricBooking {
 }
 
 model SampleDevelopment {
-  id                       String   @id @default(auto()) @map("_id") @db.ObjectId
-  createdById              String?  @db.ObjectId
+  id                       Int      @id @default(autoincrement())
+  createdById              Int?
   createdBy                User?    @relation("UserCreatedSampleDevelopments", fields: [createdById], references: [id])
   style                    String
   samplemanName            String
@@ -176,7 +176,7 @@ model SampleDevelopment {
 }
 
 model DHLTracking {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  id                Int      @id @default(autoincrement())
   style             String
   date              DateTime
   trackingNumber    String

@@ -44,7 +44,7 @@ export const getFabricBooking = async (req, res) => {
     // Search by style or CadMasterName (case-insensitive)
     if (search) {
       where.OR = [
-        { style: { contains: search, mode: 'insensitive' } }
+        { style: { contains: search } }
       ];
     }
 
