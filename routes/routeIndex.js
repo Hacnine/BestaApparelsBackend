@@ -10,6 +10,7 @@ import cadRoute from "./cadRoutes.js";
 import sampleDevelopmentRoute from "./sampleDevelopementRoutes.js";
 import fabricBookingRoute from "./fabricBookingRoute.js";
 import dhlTrackingRoute from "./dHLTrackingRoute.js";
+import buyerRouter from "./buyerRoutes.js";
 
 const apiRoute = Router();
 
@@ -23,5 +24,6 @@ apiRoute.use("/cad", cadRoute);
 apiRoute.use("/sample-developments", sampleDevelopmentRoute);
 apiRoute.use("/fabric-booking", fabricBookingRoute);
 apiRoute.use("/dhl-tracking", dhlTrackingRoute);
+apiRoute.use("/buyers", buyerRouter);
 
 export default apiRoute;
