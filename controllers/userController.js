@@ -244,10 +244,10 @@ export const updateUser = async (req, res) => {
       return res.status(403).json({ error: "Forbidden: Admins only" });
     }
 
-    const { id } = req.params;
-    const userId = id;
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required" });
+    // Parse id as integer and validate
+    const userId = parseInt(req.params.id, 10);
+    if (!userId || isNaN(userId)) {
+      return res.status(400).json({ error: "User ID must be a valid integer" });
     }
     const { userName, email, role, customId } = req.body;
     console.log(req.body);
