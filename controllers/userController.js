@@ -96,41 +96,34 @@ export async function deleteUser(req, res) {
 export const getUsers = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = 20;
+    const limit = 10;
     const search = req.query.search || "";
+    const role = req.query.role || "";
     const skip = (page - 1) * limit;
 
-    // Where clause for findMany (includes employee relation)
-    const where = search
-      ? {
-          OR: [
-            { userName: { contains: search } },
-            { role: { contains: search } },
-            {
-              employee: {
-                email: { contains: search },
-                isNot: null,
-              },
-            },
-            {
-              employee: {
-                phoneNumber: { contains: search },
-                isNot: null,
-              },
-            },
-          ],
-        }
-      : {};
+    const roleEnumValues = [
+      "ADMIN",
+      "MANAGEMENT",
+      "MERCHANDISER",
+      "CAD",
+      "SAMPLE_FABRIC",
+      "SAMPLE_ROOM",
+    ];
 
-    // Simplified where clause for count (excludes employee relation)
-    const countWhere = search
-      ? {
-          OR: [
-            { userName: { contains: search } },
-            { role: { contains: search } },
-          ],
-        }
-      : {};
+    const orFilters = [
+      { userName: { contains: search } },
+      { employee: { is: { email: { contains: search } } } },
+      { employee: { is: { phoneNumber: { contains: search } } } },
+    ];
+
+    // Build where clause
+    let where = {};
+    if (search) {
+      where.OR = orFilters;
+    }
+    if (role && roleEnumValues.includes(role)) {
+      where.role = role;
+    }
 
     // Fetch users with related employee data
     const users = await prisma.user.findMany({
@@ -159,7 +152,7 @@ export const getUsers = async (req, res) => {
 
     // Get total count with simplified where clause
     // const totalUsers = await prisma.user.count({ where: countWhere });
-const totalUsers = 0;
+    const totalUsers = 0;
     // Calculate pagination metadata
     const totalPages = Math.ceil(totalUsers / limit);
     const hasNextPage = page < totalPages;
