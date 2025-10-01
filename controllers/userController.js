@@ -77,8 +77,20 @@ export const createUser = async (req, res) => {
 
     return res.status(200).json({ message: "User created successfully", user });
   } catch (error) {
+    // Handle Prisma unique constraint error for duplicate userName
+    if (error.code === "P2002" && error.meta?.target?.includes("userName")) {
+      return res.status(400).json({ error: "User name already exists" });
+    }
+    // Handle other Prisma unique constraint errors
+    if (error.code === "P2002") {
+      return res.status(400).json({ error: "Unique constraint failed" });
+    }
+    // Handle employee not found error
+    if (error.message && error.message.includes("Employee with email")) {
+      return res.status(404).json({ error: error.message });
+    }
     console.error("Error creating user:", error);
-    throw error; // Re-throw for caller to handle
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
