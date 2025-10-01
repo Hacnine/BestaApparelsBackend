@@ -56,18 +56,27 @@ export const createBuyer = async (req, res) => {
 
 export const getBuyers = async (req, res) => {
   try {
-    const buyers = await prisma.buyer.findMany({
-      select: {
-        id: true,
-        name: true,
-        country: true,
-        buyerDepartments: {
-          select: {
-            name: true,
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const [buyers, total] = await Promise.all([
+      prisma.buyer.findMany({
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          country: true,
+          buyerDepartments: {
+            select: {
+              name: true,
+            },
           },
         },
-      },
-    });
+      }),
+      prisma.buyer.count(),
+    ]);
 
     // Create audit log
     // await prisma.auditLog.create({
@@ -84,7 +93,15 @@ export const getBuyers = async (req, res) => {
     //   },
     // });
 
-    res.status(200).json({ data: buyers });
+    res.status(200).json({
+      data: buyers,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.error("Error fetching buyers:", error);
     res.status(500).json({
