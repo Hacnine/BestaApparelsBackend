@@ -104,17 +104,17 @@ export const getUsers = async (req, res) => {
     const where = search
       ? {
           OR: [
-            { userName: { contains: search, mode: "insensitive" } },
-            { role: { contains: search, mode: "insensitive" } },
+            { userName: { contains: search } },
+            { role: { contains: search } },
             {
               employee: {
-                email: { contains: search, mode: "insensitive" },
+                email: { contains: search },
                 isNot: null,
               },
             },
             {
               employee: {
-                phoneNumber: { contains: search, mode: "insensitive" },
+                phoneNumber: { contains: search },
                 isNot: null,
               },
             },
@@ -126,8 +126,8 @@ export const getUsers = async (req, res) => {
     const countWhere = search
       ? {
           OR: [
-            { userName: { contains: search, mode: "insensitive" } },
-            { role: { contains: search, mode: "insensitive" } },
+            { userName: { contains: search } },
+            { role: { contains: search } },
           ],
         }
       : {};
@@ -137,7 +137,7 @@ export const getUsers = async (req, res) => {
       where,
       skip,
       take: limit,
-      orderBy: { userName: "asc" },
+      orderBy: { userName: "desc" },
       include: {
         employee: {
           select: {
