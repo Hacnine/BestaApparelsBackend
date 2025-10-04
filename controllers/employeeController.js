@@ -20,8 +20,10 @@ export const createEmployee = async (req, res) => {
     });
     return res.status(201).json({ message: "Employee created successfully", employee });
   } catch (error) {
-    console.error("Error creating employee:", error);
-    throw new Error("Failed to create employee");
+     // Handle Prisma unique constraint error for duplicate customId
+    if (error.code === "P2002" && error.meta?.target?.includes("customId")) {
+      return res.status(400).json({ message: "Custom ID already exists, please choose another." });
+    }
   }
 }
 
