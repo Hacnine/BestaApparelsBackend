@@ -4,6 +4,7 @@ import {
   validateBuyer,
   validateUserRole,
   validateAuth,
+  isDhlTrackingComplete,
 } from "../utils/validationUtils.js";
 const prisma = new PrismaClient();
 
@@ -29,9 +30,9 @@ export async function getTNAs(req, res) {
     if (style) where.style = style;
     if (search) {
       where.OR = [
-        { style: { contains: search, mode: "insensitive" } },
-        { itemName: { contains: search, mode: "insensitive" } },
-        { buyer: { name: { contains: search, mode: "insensitive" } } },
+        { style: { contains: search } },
+        { itemName: { contains: search } },
+        { buyer: { name: { contains: search } } },
       ];
     }
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
@@ -119,7 +120,8 @@ export const createTna = async (req, res) => {
       !validateAuth(req, res) ||
       !(await validateDates(sampleSendingDate, orderDate, res)) ||
       !(await validateBuyer(prisma, buyerId, res)) ||
-      !(await validateUserRole(prisma, userId, "MERCHANDISER", res))
+      !(await validateUserRole(prisma, userId, "MERCHANDISER", res)) ||
+      !(await isDhlTrackingComplete(res, style, false))
     ) {
       return;
     }
@@ -224,11 +226,11 @@ export async function getTNASummary(req, res) {
     // Search by name (style, itemName, buyerName, merchandiser)
     if (search) {
       where.OR = [
-        { style: { contains: search, mode: "insensitive" } },
-        { itemName: { contains: search, mode: "insensitive" } },
-        { buyer: { name: { contains: search, mode: "insensitive" } } },
+        { style: { contains: search } },
+        { itemName: { contains: search } },
+        { buyer: { name: { contains: search } } },
         {
-          merchandiser: { userName: { contains: search, mode: "insensitive" } },
+          merchandiser: { userName: { contains: search } },
         },
       ];
     }
