@@ -16,11 +16,9 @@
   "scripts": {
     "dev": "nodemon app",
     "start": "node app.js",
-    "postinstall": "prisma generate ",
-    "combine-schema": "node combine-schema.js",
-    "prisma:validate": "npm run combine-schema && npx prisma validate",
-    "prisma:generate": "npm run combine-schema && npx prisma generate",
-    "prisma:push": "npm run combine-schema && npx prisma db push"
+    "prisma:validate": "npx prisma validate",
+    "prisma:generate": "npx prisma generate",
+    "prisma:push": "npx prisma db push"
   },
   "author": "",
   "license": "ISC",
