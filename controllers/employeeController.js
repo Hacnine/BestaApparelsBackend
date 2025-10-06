@@ -1,6 +1,5 @@
 import { PrismaClient } from "@prisma/client";
 import { checkAdmin } from "../utils/userControllerUtils.js";
-import { getRedisClient } from "../config/redisClient.js";
 const prisma = new PrismaClient();
 
 export const createEmployee = async (req, res) => {

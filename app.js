@@ -7,19 +7,19 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import compression from "compression";
 import session from "express-session";
-import { RedisStore } from "connect-redis";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 import bcrypt from "bcryptjs";
+import MySQLStore from "express-mysql-session";
 
 import { PrismaClient } from "@prisma/client";
-import { connectRedisClient } from "./config/redisClient.js";
 import logger from "./utils/logger.js";
-import { initialSocketServer } from "./sockets/socketindex.js";
+// import { initialSocketServer } from "./sockets/socketindex.js";
 
 import routeIndex from "./routes/routeIndex.js";
 
+const MySQLSessionStore = MySQLStore(session);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // docker compose up -d
@@ -30,7 +30,6 @@ let io;
   try {
     const port = process.env.PORT || 3001;
     const prisma = new PrismaClient();
-    const redisClient = await connectRedisClient();
 
     // Add this block to create the first user if none exists
     const createInitialAdmin = async () => {
@@ -111,10 +110,21 @@ let io;
     app.use(express.urlencoded({ extended: true }));
     app.use(cookieParser());
 
-    // Redis session store
+    // Configure MySQL session store
+    const sessionStoreOptions = {
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+    };
+
+    const sessionStore = new MySQLSessionStore(sessionStoreOptions);
+
+
     app.use(
       session({
-        store: new RedisStore({ client: redisClient, prefix: "besta:sess:" }),
+        store: sessionStore,
         secret: process.env.SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
@@ -130,7 +140,7 @@ let io;
 
     // Socket.IO
     const server = http.createServer(app);
-    io = await initialSocketServer(server, redisClient);
+    // io = await initialSocketServer(server);
 
     // Attach io to requests
     app.use((req, _res, next) => {
@@ -184,5 +194,5 @@ let io;
   }
 })();
 
-export { app, io };
+export { app };
 

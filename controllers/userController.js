@@ -2,7 +2,6 @@ import { PrismaClient } from "@prisma/client";
 import { checkAdmin } from "../utils/userControllerUtils.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { getRedisClient } from "../config/redisClient.js";
 
 const prisma = new PrismaClient();
 
@@ -363,42 +362,6 @@ export const changePassword = async (req, res) => {
   }
 };
 
-// Helper function to store tokens in Redis and set cookies
-const storeToken = async (res, tokens, userId) => {
-  const redisClient = getRedisClient();
-  const isProduction = process.env.NODE_ENV === "production";
-  const cookieOptions = {
-    httpOnly: true,
-    secure: isProduction, // Secure only in production
-    sameSite: isProduction ? "none" : "lax", // Relax sameSite for local dev
-    path: "/",
-  };
-  // Store tokens in Redis with expiration
-  await redisClient.set(`access_token_${userId}`, tokens.access, {
-    EX: 24 * 60 * 60, // 1 day in seconds
-  });
-  await redisClient.set(`refresh_token_${userId}`, tokens.refresh, {
-    EX: 7 * 24 * 60 * 60, // 7 days in seconds
-  });
-
-  // Set tokens in cookies
-  res.cookie("access_token", tokens.access, {
-    ...cookieOptions,
-    maxAge: 24 * 60 * 60 * 1000, // 1 day
-  });
-  res.cookie("refresh_token", tokens.refresh, {
-    ...cookieOptions,
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
-};
-
-// Helper function to remove tokens from Redis
-const removeToken = async (userId) => {
-  const redisClient = getRedisClient();
-  await redisClient.del(`access_token_${userId}`);
-  await redisClient.del(`refresh_token_${userId}`);
-};
-
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -446,13 +409,12 @@ console.log(req.body);
     // Clear old tokens
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Fixed: Use production check correctly
+      secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
     };
     res.clearCookie("access_token", cookieOptions);
     res.clearCookie("refresh_token", cookieOptions);
-    await removeToken(user.id);
 
     // Generate new tokens
     const accessToken = jwt.sign(
@@ -466,16 +428,18 @@ console.log(req.body);
       { expiresIn: "7d" }
     );
 
-    // Store tokens in Redis and set cookies
-    await storeToken(
-      res,
-      { access: accessToken, refresh: refreshToken },
-      user.id
-    );
+    res.cookie("access_token", accessToken, {
+      ...cookieOptions,
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+    res.cookie("refresh_token", refreshToken, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return res.status(200).json({
       message: "Login successful",
-      user: { id: user.id, name: user.userName, email: employee.email, role: user.role }, // Use Employee.email
+      user: { id: user.id, name: user.userName, email: employee.email, role: user.role },
     });
   } catch (error) {
     return res
@@ -489,23 +453,13 @@ export const logout = async (req, res) => {
     // Clear cookies
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Align with storeToken
+      secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       path: "/",
     };
     res.clearCookie("access_token", cookieOptions);
     res.clearCookie("refresh_token", cookieOptions);
-
-    // Clear tokens from Redis
-    if (req.id) {
-      await removeToken(req.id);
-
-      // Fetch user and linked employee for audit log
-      const user = await req.prisma.user.findUnique({
-        where: { id: req.id },
-        include: { employee: true }, // Include Employee for email
-      });
-    }
+  
     return res.status(200).json({ message: "Logout successful" });
   } catch (error) {
     return res
