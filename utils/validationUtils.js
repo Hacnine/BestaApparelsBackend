@@ -7,8 +7,9 @@ export async function validateDates(sampleSendingDate, orderDate, res) {
 }
 
 export async function validateBuyer(prisma, buyerId, res) {
+  const idInt = parseInt(buyerId, 10);
   const buyerExists = await prisma.buyer.findUnique({
-    where: { id: buyerId },
+    where: { id: idInt },
   });
   if (!buyerExists) {
     res.status(404).json({ error: "Buyer not found" });
@@ -18,8 +19,9 @@ export async function validateBuyer(prisma, buyerId, res) {
 }
 
 export async function validateUserRole(prisma, userId, role, res) {
+  const idInt = parseInt(userId, 10);
   const userExists = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: idInt },
   });
   if (!userExists) {
     res.status(404).json({ error: "User not found" });
