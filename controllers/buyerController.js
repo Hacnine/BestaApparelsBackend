@@ -114,7 +114,6 @@ export const getBuyers = async (req, res) => {
 export const editBuyer = async (req, res) => {
   try {
     const { id } = req.params;
-    const buyerId = parseInt(id, 10);
     const { name, country, buyerDepartmentId } = req.body;
 
     // Validate required fields
@@ -123,7 +122,7 @@ export const editBuyer = async (req, res) => {
     }
 
     const updatedBuyer = await prisma.buyer.update({
-      where: { id: buyerId },
+      where: { id: Number(id) },
       data: {
         name,
         country,
@@ -150,9 +149,9 @@ export const editBuyer = async (req, res) => {
 export const deleteBuyer = async (req, res) => {
   try {
     const { id } = req.params;
-    const buyerId = parseInt(id, 10);
+
     await prisma.buyer.delete({
-      where: { id: buyerId },
+      where: { id: Number(id) },
     });
 
     res.status(200).json({

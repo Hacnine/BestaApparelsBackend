@@ -86,8 +86,6 @@ export const getCadApproval = async (req, res) => {
 export const updateCadDesign = async (req, res) => {
   try {
     const { id } = req.params;
-    // Convert id to integer
-    const cadId = parseInt(id, 10);
     const {
       style,
       fileReceiveDate,
@@ -98,7 +96,7 @@ export const updateCadDesign = async (req, res) => {
     } = req.body;
 
     const updatedCad = await prisma.cadDesign.update({
-      where: { id: cadId },
+      where: { id },
       data: {
         ...(style && { style }),
         ...(fileReceiveDate && { fileReceiveDate: new Date(fileReceiveDate) }),
@@ -119,10 +117,8 @@ export const updateCadDesign = async (req, res) => {
 export const deleteCadDesign = async (req, res) => {
   try {
     const { id } = req.params;
-    // Convert id to integer
-    const cadId = parseInt(id, 10);
     await prisma.cadDesign.delete({
-      where: { id: cadId },
+      where: { id },
     });
     res.json({ message: 'CAD Design deleted successfully' });
   } catch (error) {

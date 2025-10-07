@@ -97,8 +97,7 @@ export const createUser = async (req, res) => {
 export async function deleteUser(req, res) {
   try {
     const { id } = req.params;
-    const userId = parseInt(id, 10);
-    await prisma.user.delete({ where: { id: userId } });
+    await prisma.user.delete({ where: { id } });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -202,7 +201,6 @@ export const toggleUserStatus = async (req, res) => {
     await checkAdmin(req.user);
 
     const { userId } = req.params;
-    const userIdInt = parseInt(userId, 10);
     const { status } = req.body;
 
     // Validate status
@@ -214,7 +212,7 @@ export const toggleUserStatus = async (req, res) => {
 
     // Check if user exists
     const user = await prisma.user.findUnique({
-      where: { id: userIdInt },
+      where: { id: userId },
     });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -227,7 +225,7 @@ export const toggleUserStatus = async (req, res) => {
 
     // Update user status
     const updatedUser = await prisma.user.update({
-      where: { id: userIdInt },
+      where: { id: userId },
       data: { status },
     });
 
@@ -330,7 +328,6 @@ export const updateUser = async (req, res) => {
 export const changePassword = async (req, res) => {
   try {
     const { userId: id } = req.params;
-    const userIdInt = parseInt(id, 10);
     const { oldPassword, newPassword } = req.body;
     // Validate input
     if (!oldPassword || !newPassword) {
@@ -340,7 +337,7 @@ export const changePassword = async (req, res) => {
     }
     // Check if the user exists
     const user = await prisma.user.findUnique({
-      where: { id: userIdInt },
+      where: { id: id },
       select: { password: true },
     });
     if (!user) {
@@ -355,7 +352,7 @@ export const changePassword = async (req, res) => {
     const hashedNewPassword = await bcrypt.hash(newPassword, 10);
     // Update user password
     await prisma.user.update({
-      where: { id: userIdInt },
+      where: { id: id },
       data: { password: hashedNewPassword },
     });
     return res.status(200).json({ message: "Password changed successfully" });
@@ -473,10 +470,9 @@ export const logout = async (req, res) => {
 
 export const getUserInfo = async (req, res) => {
   const { userId } = req.body;
-  const userIdInt = parseInt(userId, 10);
   // Check if the user exists
   const user = await prisma.user.findUnique({
-    where: { id: userIdInt },
+    where: { id: userId },
   });
   if (!user) {
     return res.status(404).json({ error: "User not found" });
