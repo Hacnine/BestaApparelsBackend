@@ -83,6 +83,7 @@ export const getEmployees = async (req, res) => {
 export const updateEmployeeStatus = async (req, res) => {
   try {
     const { id } = req.params; 
+    const employeeId = parseInt(id, 10);
     const { status } = req.body; 
 
     if (!['ACTIVE', 'INACTIVE'].includes(status)) {
@@ -90,7 +91,7 @@ export const updateEmployeeStatus = async (req, res) => {
     }
 
     const updatedEmployee = await prisma.employee.update({
-      where: { id },
+      where: { id: employeeId },
       data: { status },
       include: { user: true }, // Include related user if needed
     });

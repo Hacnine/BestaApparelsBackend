@@ -112,6 +112,7 @@ export const getSampleDevelopment = async (req, res) => {
 export const updateSampleDevelopment = async (req, res) => {
   try {
     const { id } = req.params;
+    const sampleDevId = parseInt(id, 10);
     const {
       style,
       samplemanName,
@@ -141,7 +142,7 @@ console.log("Updating Sample Development ID:", id, "with data:", req.body);
     if (sampleQuantity !== undefined) data.sampleQuantity = Number(sampleQuantity);
 
     const updated = await prisma.sampleDevelopment.update({
-      where: { id },
+      where: { id: sampleDevId },
       data,
     });
 
@@ -162,8 +163,9 @@ console.log("Updating Sample Development ID:", id, "with data:", req.body);
 export const deleteSampleDevelopment = async (req, res) => {
   try {
     const { id } = req.params;
+    const sampleDevId = parseInt(id, 10);
     await prisma.sampleDevelopment.delete({
-      where: { id },
+      where: { id: sampleDevId },
     });
     res.json({ message: 'Sample Development deleted successfully' });
   } catch (error) {

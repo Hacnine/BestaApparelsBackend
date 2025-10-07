@@ -94,6 +94,7 @@ export const getFabricBooking = async (req, res) => {
 export const updateFabricBooking = async (req, res) => {
   try {
     const { id } = req.params;
+    const fabricBookingId = parseInt(id, 10);
     const {
       style,
       bookingDate,
@@ -112,7 +113,7 @@ export const updateFabricBooking = async (req, res) => {
       data.actualReceiveDate = actualReceiveDate ? new Date(actualReceiveDate) : null;
 
     const updated = await prisma.fabricBooking.update({
-      where: { id },
+      where: { id: fabricBookingId },
       data,
     });
 
@@ -133,8 +134,9 @@ export const updateFabricBooking = async (req, res) => {
 export const deleteFabricBooking = async (req, res) => {
   try {
     const { id } = req.params;
+    const fabricBookingId = parseInt(id, 10);
     await prisma.fabricBooking.delete({
-      where: { id },
+      where: { id: fabricBookingId },
     });
     res.json({ message: "Fabric Booking deleted successfully" });
   } catch (error) {
