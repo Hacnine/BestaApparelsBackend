@@ -23,6 +23,30 @@ enum Status {
   SUSPENDED
 }
 
+enum DEPARTMENTS {
+  MERCHANDISING
+  MANAGEMENT
+  IT
+  CAD_ROOM
+  SAMPLE_FABRIC
+  SAMPLE_SEWING
+}
+
+
+model Employee {
+  id          Int     @id @default(autoincrement())
+  customId    String  @unique
+  name        String
+  email       String  @unique
+  phoneNumber String?
+  status      Status
+  designation String
+  department  DEPARTMENTS
+  user        User?   @relation
+
+  @@map("employees")
+}
+
 model User {
   id         Int       @id @default(autoincrement())
   userName   String    @unique
@@ -39,20 +63,6 @@ model User {
   createdSampleDevelopments SampleDevelopment[] @relation("UserCreatedSampleDevelopments")
 
   @@map("users")
-}
-
-model Employee {
-  id          Int     @id @default(autoincrement())
-  customId    String  @unique
-  name        String
-  email       String  @unique
-  phoneNumber String?
-  status      Status
-  designation String
-  department  String
-  user        User?   @relation
-
-  @@map("employees")
 }
 
 enum TNAStatus {
@@ -91,6 +101,17 @@ model TNA {
   @@map("tnas")
 }
 
+model Buyer {
+  id                Int         @id @default(autoincrement())
+  name              String
+  country           String
+  buyerDepartments  Department? @relation("Buyer_buyerDepartments", fields: [buyerDepartmentId], references: [id])
+  buyerDepartmentId Int?
+  tnas              TNA[]       @relation(name: "TNAtoBuyer")
+
+  @@map("buyers")
+}
+
 model AuditLog {
   id          Int      @id @default(autoincrement())
   timestamp   DateTime @default(now())
@@ -105,17 +126,6 @@ model AuditLog {
   status      String
 
   @@map("audit_logs")
-}
-
-model Buyer {
-  id                Int         @id @default(autoincrement())
-  name              String
-  country           String
-  buyerDepartments  Department? @relation("Buyer_buyerDepartments", fields: [buyerDepartmentId], references: [id])
-  buyerDepartmentId Int?
-  tnas              TNA[]       @relation(name: "TNAtoBuyer")
-
-  @@map("buyers")
 }
 
 model Department {
