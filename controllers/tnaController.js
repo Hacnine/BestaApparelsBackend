@@ -165,13 +165,71 @@ export async function updateTNA(req, res) {
   try {
     const { id } = req.params;
     const tnaId = parseInt(id, 10);
-    let data = req.body;
+    const data = req.body;
 
-    // Remove empty string for ObjectId fields to avoid malformed ObjectId error
-    if (data.buyerId === "") delete data.buyerId;
-    if (data.userId === "") delete data.userId;
+    // Fetch existing TNA record
+    const existingTNA = await prisma.tNA.findUnique({
+      where: { id: tnaId },
+    });
+    if (!existingTNA) {
+      return res.status(404).json({ error: "TNA not found" });
+    }
 
-    const tna = await prisma.tNA.update({ where: { id: tnaId }, data });
+    // Prepare update object, fallback to previous data if not provided
+    const updateData = {};
+
+    // Handle buyerId relation
+    if (Object.prototype.hasOwnProperty.call(data, "buyerId")) {
+      // Only disconnect if buyerId is null or a special value
+      if (data.buyerId === null || data.buyerId === "__disconnect__") {
+        updateData.buyer = { disconnect: true };
+      } else if (
+        data.buyerId !== undefined &&
+        data.buyerId !== "" &&
+        !isNaN(parseInt(data.buyerId, 10))
+      ) {
+        updateData.buyer = { connect: { id: parseInt(data.buyerId, 10) } };
+      }
+      // If buyerId is undefined or empty string, do not touch buyer relation
+    }
+
+    // Handle userId relation (merchandiser)
+    if (Object.prototype.hasOwnProperty.call(data, "userId")) {
+      if (data.userId === null || data.userId === "__disconnect__") {
+        updateData.merchandiser = { disconnect: true };
+      } else if (
+        data.userId !== undefined &&
+        data.userId !== "" &&
+        !isNaN(parseInt(data.userId, 10))
+      ) {
+        const merchExists = await prisma.user.findUnique({
+          where: { id: parseInt(data.userId, 10) }
+        });
+        if (!merchExists) {
+          return res.status(400).json({ error: "Merchandiser userId does not exist." });
+        }
+        updateData.merchandiser = { connect: { id: parseInt(data.userId, 10) } };
+      }
+      // If userId is undefined or empty string, do not touch merchandiser relation
+    }
+
+    // Only update fields that are present and not empty string, keep previous data for others
+    const allowedFields = [
+      "style", "itemName", "itemImage", "sampleSendingDate", "orderDate",
+      "status", "sampleType"
+    ];
+    for (const key of allowedFields) {
+      if (data[key] !== undefined && data[key] !== "") {
+        updateData[key] = data[key];
+      } else {
+        updateData[key] = existingTNA[key];
+      }
+    }
+
+    const tna = await prisma.tNA.update({
+      where: { id: tnaId },
+      data: updateData,
+    });
     res.json(tna);
   } catch (err) {
     res.status(500).json({ error: err.message });

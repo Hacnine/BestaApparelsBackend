@@ -31,7 +31,7 @@ router.use(requireAuth)
 
 router.get('/', getTNAs);
 router.post('/', createTna);
-router.put('/:id', updateTNA);
+router.patch('/:id', updateTNA);
 router.delete('/:id', deleteTNA);
 router.get('/department-progress', getDepartmentProgress);
 router.get('/department-progress-v2', getDepartmentProgressV2);
