@@ -12,8 +12,8 @@ import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 import bcrypt from "bcryptjs";
 import MySQLStore from "express-mysql-session";
-import mysql from "mysql2/promise";
 
+import { PrismaClient } from "@prisma/client";
 import logger from "./utils/logger.js";
 // import { initialSocketServer } from "./sockets/socketindex.js";
 
@@ -29,43 +29,59 @@ let io;
 (async () => {
   try {
     const port = process.env.PORT || 3001;
+    const prisma = new PrismaClient();
 
-    // MySQL connection
-    const db = await mysql.createPool({
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
+    // Add this block to create the first user if none exists
+    const createInitialAdmin = async () => {
+      try {
+        const userCount = await prisma.user.count();
+        if (userCount === 0) {
+          // Step 1: Create an Employee for the admin
+          const employee = await prisma.employee.create({
+            data: {
+              customId: "EMP001",
+              name: "Admin",
+              email: "admin@tna.com",
+              status: "ACTIVE",
+              designation: "System Administrator",
+              department: "IT",
+            },
+          });
+
+          // Step 2: Create a User linked to the Employee
+          const hashedPassword = await bcrypt.hash("admin123", 10);
+          const user = await prisma.user.create({
+            data: {
+              userName: "admin",
+              password: hashedPassword,
+              role: "ADMIN", // Matches Role enum
+              employeeId: employee.id,
+            },
+          });
+
+          console.log("First admin user created:", employee.email);
+        }
+      } catch (error) {
+        console.error("Error creating initial admin:", error);
+        throw error;
+      } finally {
+        await prisma.$disconnect();
+      }
+    };
+
+    // Call it
+    await createInitialAdmin();
 
     // Core middlewares
     app.use(helmet());
     // app.use(compression());
 
-    // CORS setup
     const allowedOrigins = [
-      "http://localhost:8080",
-      "http://192.168.0.98:8080",
-      "https://api.yourdomain.com", // production domain
-      "https://yourdomain.com"      // if frontend is served from root domain
+      "http://localhost:8080", // your dev frontend
+      "http://192.168.0.98:8080", // frontend accessed via LAN IP
     ];
 
-    app.use(cors({
-      origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps, curl, etc.)
-        if (!origin) return callback(null, true);
-        // In development, allow all origins
-        if (process.env.NODE_ENV !== "production") return callback(null, true);
-        // In production, restrict to allowed origins
-        if (allowedOrigins.includes(origin)) return callback(null, true);
-        return callback(new Error("Not allowed by CORS"));
-      },
-      credentials: true
-    }));
+    app.use(cors({ origin: true, credentials: true }));
 
     // Always set CORS headers for /uploads (for all HTTP methods and responses)
     app.use("/uploads", (req, res, next) => {
@@ -129,7 +145,7 @@ let io;
     // Attach io to requests
     app.use((req, _res, next) => {
       req.io = io;
-      req.db = db; // attach MySQL pool
+      req.prisma = prisma; // attach Prisma client too
       next();
     });
 
@@ -179,3 +195,4 @@ let io;
 })();
 
 export { app };
+

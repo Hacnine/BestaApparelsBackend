@@ -1,56 +1,60 @@
+import { PrismaClient } from "@prisma/client";
 import { checkAdmin } from "../utils/userControllerUtils.js";
+const prisma = new PrismaClient();
 
 export const createEmployee = async (req, res) => {
   try {
     await checkAdmin(req.user);
     const employeeData = req.body;
-    const db = req.db;
-    const result = await db.query(
-      `INSERT INTO employees (customId, name, phoneNumber, email, status, designation, department)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       RETURNING *`,
-      [employeeData.customId, employeeData.name, employeeData.phoneNumber, employeeData.email, employeeData.status || "ACTIVE", employeeData.designation, employeeData.department]
-    );
-    const employee = result[0];
+    const employee = await prisma.employee.create({
+      data: {
+        customId: employeeData.customId,
+        name: employeeData.name,
+        phoneNumber: employeeData.phoneNumber,
+        email: employeeData.email,
+        status: employeeData.status || "ACTIVE",
+        designation: employeeData.designation,
+        department: employeeData.department,
+      },
+    });
     return res.status(201).json({ message: "Employee created successfully", employee });
   } catch (error) {
-     // Handle SQL unique constraint error for duplicate customId
-    if (error.code === "ER_DUP_ENTRY" && error.message.includes("customId")) {
+     // Handle Prisma unique constraint error for duplicate customId
+    if (error.code === "P2002" && error.meta?.target?.includes("customId")) {
       return res.status(400).json({ message: "Custom ID already exists, please choose another." });
     }
-    console.error('Error creating employee:', error);
-    res.status(500).json({ success: false, message: 'Error creating employee', error: error.message });
   }
 }
 
 export const getEmployees = async (req, res) => {
   try {
-    const db = req.db;
+   
     const page = parseInt(req.query.page) || 1;
     const limit = 20; 
     const search = req.query.search || ''; 
     const skip = (page - 1) * limit;
 
-    let whereClause = 'WHERE 1=1';
-    const queryParams = [];
-
+  
+    const where = {};
     if (search) {
-      whereClause += ` AND (customId LIKE ? OR email LIKE ? OR department LIKE ? OR designation LIKE ?)`;
-      const likeSearch = `%${search}%`;
-      queryParams.push(likeSearch, likeSearch, likeSearch, likeSearch);
+      where.OR = [
+        { customId: { contains: search } },
+        { email: { contains: search } },
+        { department: { contains: search } },
+        { designation: { contains: search } },
+      ];
     }
 
-    const employees = await db.query(
-      `SELECT * FROM employees ${whereClause} ORDER BY customId ASC LIMIT ? OFFSET ?`,
-      [...queryParams, limit, skip]
-    );
+    const employees = await prisma.employee.findMany({
+      where,
+      skip: skip,
+      take: limit,
+      orderBy: { customId: 'asc' }, 
+      include: { user: true },
+    });
 
     // Get total count (with search applied for accurate pagination)
-    const totalResult = await db.query(
-      `SELECT COUNT(*) as total FROM employees ${whereClause}`,
-      queryParams
-    );
-    const totalEmployees = totalResult[0]?.total || 0;
+    const totalEmployees = await prisma.employee.count({ where });
 
     // Calculate pagination metadata
     const totalPages = Math.ceil(totalEmployees / limit);
@@ -78,7 +82,6 @@ export const getEmployees = async (req, res) => {
 
 export const updateEmployeeStatus = async (req, res) => {
   try {
-    const db = req.db;
     const { id } = req.params; 
     const { status } = req.body; 
 
@@ -86,12 +89,11 @@ export const updateEmployeeStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid status. Must be ACTIVE or INACTIVE.' });
     }
 
-    const result = await db.query(
-      `UPDATE employees SET status = ? WHERE id = ? RETURNING *`,
-      [status, id]
-    );
-
-    const updatedEmployee = result[0];
+    const updatedEmployee = await prisma.employee.update({
+      where: { id },
+      data: { status },
+      include: { user: true }, // Include related user if needed
+    });
 
     if (!updatedEmployee) {
       return res.status(404).json({ success: false, message: 'Employee not found' });

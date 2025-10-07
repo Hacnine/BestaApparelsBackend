@@ -1,0 +1,27 @@
+enum TNAStatus {
+  ACTIVE
+  CANCELLED
+  INACTIVE
+}
+
+enum sampleType {
+  DVP
+  PP
+}
+
+model TNA {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  buyer             Buyer?   @relation(fields: [buyerId], references: [id])
+  buyerId           String?  @db.ObjectId // Removed @unique
+  style             String
+  itemName          String
+  sampleSendingDate DateTime
+  orderDate         DateTime
+  merchandiser      User?    @relation(fields: [userId], references: [id])
+  status            TNAStatus @default(ACTIVE)
+  userId            String?  @unique @db.ObjectId
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("tnas")
+}

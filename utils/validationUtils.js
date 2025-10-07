@@ -6,28 +6,26 @@ export async function validateDates(sampleSendingDate, orderDate, res) {
   return true;
 }
 
-export async function validateBuyer(db, buyerId, res) {
-  const [rows] = await db.query(
-    "SELECT id FROM buyers WHERE id = ?",
-    [buyerId]
-  );
-  if (rows.length === 0) {
+export async function validateBuyer(prisma, buyerId, res) {
+  const buyerExists = await prisma.buyer.findUnique({
+    where: { id: buyerId },
+  });
+  if (!buyerExists) {
     res.status(404).json({ error: "Buyer not found" });
     return false;
   }
   return true;
 }
 
-export async function validateUserRole(db, userId, role, res) {
-  const [rows] = await db.query(
-    "SELECT role FROM users WHERE id = ?",
-    [userId]
-  );
-  if (rows.length === 0) {
+export async function validateUserRole(prisma, userId, role, res) {
+  const userExists = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+  if (!userExists) {
     res.status(404).json({ error: "User not found" });
     return false;
   }
-  if (rows[0].role !== role) {
+  if (userExists.role !== role) {
     res.status(403).json({ error: `User must be a ${role}` });
     return false;
   }
@@ -42,22 +40,22 @@ export function validateAuth(req, res) {
   return true;
 }
 
-export async function isDhlTrackingComplete(res, db, style, shouldBeComplete = true) {
+export async function isDhlTrackingComplete(res, prisma, style, shouldBeComplete = true) {
   try {
-    const [rows] = await db.query(
-      "SELECT isComplete FROM dhl_trackings WHERE style = ?",
-      [style]
-    );
+    const trackings = await prisma.dHLTracking.findMany({
+      where: { style }
+    });
+
     if (shouldBeComplete) {
       // Check if any tracking is complete
-      const found = rows.some(row => row.isComplete === true || row.isComplete === 1);
+      const found = trackings.some(row => row.isComplete === true);
       if (!found) {
         res.status(400).json({ error: "DHL tracking for this style is not complete." });
         return false;
       }
     } else {
       // Check if all trackings are incomplete
-      const found = rows.every(row => row.isComplete === false || row.isComplete === 0);
+      const found = trackings.every(row => row.isComplete === false);
       if (!found) {
         res.status(400).json({ error: "DHL tracking for this style is already complete." });
         return false;
@@ -69,4 +67,3 @@ export async function isDhlTrackingComplete(res, db, style, shouldBeComplete = t
     return false;
   }
 }
-

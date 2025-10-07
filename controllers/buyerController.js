@@ -1,3 +1,6 @@
+import { PrismaClient } from "@prisma/client";
+const prisma = new PrismaClient();
+
 export const createBuyer = async (req, res) => {
   try {
     const { name, country, buyerDepartmentId } = req.body;
@@ -7,40 +10,40 @@ export const createBuyer = async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const db = req.db;
 
-    // Create buyer
-    const result = await db.query(
-      `INSERT INTO buyers (name, country) VALUES (?, ?)`,
-      [name, country]
-    );
+    // Create buyer within a transaction
+    const newBuyer = await prisma.$transaction(async (prisma) => {
+      const buyer = await prisma.buyer.create({
+        data: {
+          name,
+          country,
+        },
+        include: {
+          buyerDepartments: true,
+        },
+      });
 
-    const newBuyerId = result.insertId;
+      // Create audit log
+      // await prisma.auditLog.create({
+      //   data: {
+      //     user: "SYSTEM", // No user context for buyer creation; can be updated based on auth
+      //     userRole: "SYSTEM",
+      //     action: "CREATE",
+      //     resource: "BUYER",
+      //     resourceId: buyer.id,
+      //     description: `Created new buyer ${name}`,
+      //     ipAddress: req.ip,
+      //     userAgent: req.get("User-Agent"),
+      //     status: "SUCCESS",
+      //   },
+      // });
 
-    // Create audit log
-    // await prisma.auditLog.create({
-    //   data: {
-    //     user: "SYSTEM", // No user context for buyer creation; can be updated based on auth
-    //     userRole: "SYSTEM",
-    //     action: "CREATE",
-    //     resource: "BUYER",
-    //     resourceId: buyer.id,
-    //     description: `Created new buyer ${name}`,
-    //     ipAddress: req.ip,
-    //     userAgent: req.get("User-Agent"),
-    //     status: "SUCCESS",
-    //   },
-    // });
-
-    // Fetch the complete buyer data including departments
-    const newBuyer = await db.query(
-      `SELECT * FROM buyers WHERE id = ?`,
-      [newBuyerId]
-    );
+      return buyer;
+    });
 
     res.status(201).json({
       message: "Buyer created successfully",
-      data: newBuyer[0],
+      data: newBuyer,
     });
   } catch (error) {
     console.error("Error creating buyer:", error);
@@ -53,22 +56,27 @@ export const createBuyer = async (req, res) => {
 
 export const getBuyers = async (req, res) => {
   try {
-    const db = req.db;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // Build SQL query
-    const buyers = await db.query(
-      `SELECT b.*, bd.name as departmentName
-       FROM buyers b
-       LEFT JOIN buyer_departments bd ON b.id = bd.buyerId
-       LIMIT ?, ?`,
-      [skip, limit]
-    );
-
-    const totalResults = await db.query(`SELECT COUNT(*) as count FROM buyers`);
-    const total = totalResults[0].count;
+    const [buyers, total] = await Promise.all([
+      prisma.buyer.findMany({
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          country: true,
+          buyerDepartments: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      }),
+      prisma.buyer.count(),
+    ]);
 
     // Create audit log
     // await prisma.auditLog.create({
@@ -113,23 +121,21 @@ export const editBuyer = async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const db = req.db;
-
-    // Update buyer
-    await db.query(
-      `UPDATE buyers SET name = ?, country = ?, buyerDepartmentId = ? WHERE id = ?`,
-      [name, country, buyerDepartmentId || null, id]
-    );
-
-    // Fetch the updated buyer data
-    const updatedBuyer = await db.query(
-      `SELECT * FROM buyers WHERE id = ?`,
-      [id]
-    );
+    const updatedBuyer = await prisma.buyer.update({
+      where: { id: Number(id) },
+      data: {
+        name,
+        country,
+        buyerDepartmentId: buyerDepartmentId || null,
+      },
+      include: {
+        buyerDepartments: true,
+      },
+    });
 
     res.status(200).json({
       message: "Buyer updated successfully",
-      data: updatedBuyer[0],
+      data: updatedBuyer,
     });
   } catch (error) {
     console.error("Error updating buyer:", error);
@@ -144,10 +150,9 @@ export const deleteBuyer = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const db = req.db;
-
-    // Delete buyer
-    await db.query(`DELETE FROM buyers WHERE id = ?`, [id]);
+    await prisma.buyer.delete({
+      where: { id: Number(id) },
+    });
 
     res.status(200).json({
       message: "Buyer deleted successfully",

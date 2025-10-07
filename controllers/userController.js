@@ -1,6 +1,9 @@
+import { PrismaClient } from "@prisma/client";
 import { checkAdmin } from "../utils/userControllerUtils.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+
+const prisma = new PrismaClient();
 
 // Get user stats
 
@@ -8,16 +11,16 @@ export async function getUserStats(req, res) {
   
   try {
     // Fetch all users with their related employee data
-    const users = await req.db.query(
-      `SELECT u.*, e.status
-       FROM users u
-       LEFT JOIN employees e ON u.employeeId = e.id`
-    );
+    const users = await prisma.user.findMany({
+      include: {
+        employee: true, // Include employee data to access status
+      },
+    });
 
     // Calculate statistics
     const roleStats = {
       total: users.length,
-      active: users.filter(u => u.status === 'ACTIVE').length,
+      active: users.filter(u => u.employee?.status === 'ACTIVE').length,
       admin: users.filter(u => u.role === 'ADMIN').length,
       management: users.filter(u => u.role === 'MANAGEMENT').length,
       merchandiser: users.filter(u => u.role === 'MERCHANDISER').length,
@@ -37,6 +40,8 @@ export async function getUserStats(req, res) {
       success: false,
       message: 'Internal server error',
     });
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
@@ -45,12 +50,11 @@ export const createUser = async (req, res) => {
     await checkAdmin(req.user);
     const userData = req.body;
     // Step 1: Search for Employee by email
-    const employee = await req.db.query(
-      `SELECT * FROM employees WHERE email = ?`,
-      [userData.employeeEmail]
-    );
+    const employee = await prisma.employee.findUnique({
+      where: { email: userData.employeeEmail }, // Use the email provided for search
+    });
 
-    if (employee.length === 0) {
+    if (!employee) {
       throw new Error(
         `Employee with email ${userData.employeeEmail} not found`
       );
@@ -60,11 +64,15 @@ export const createUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
     // Step 2: Create User linked to the Employee
-    const user = await req.db.query(
-      `INSERT INTO users (userName, password, role, employeeId)
-       VALUES (?, ?, ?, ?)`,
-      [userData.userName, hashedPassword, userData.role, employee[0].id]
-    );
+    const user = await prisma.user.create({
+      data: {
+        userName: userData.userName,
+        password: hashedPassword, // Save hashed password
+        role: userData.role, // e.g., 'EMPLOYEE'
+        employeeId: employee.id, // Link via ID
+      },
+      include: { employee: true }, // Optional: Include employee details in response
+    });
 
     return res.status(200).json({ message: "User created successfully", user });
   } catch (error) {
@@ -89,10 +97,7 @@ export const createUser = async (req, res) => {
 export async function deleteUser(req, res) {
   try {
     const { id } = req.params;
-    await req.db.query(
-      `DELETE FROM users WHERE id = ?`,
-      [id]
-    );
+    await prisma.user.delete({ where: { id } });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -101,51 +106,79 @@ export async function deleteUser(req, res) {
 
 export const getUsers = async (req, res) => {
   try {
-    const db = req.db;
     const page = parseInt(req.query.page) || 1;
     const limit = 10;
     const search = req.query.search || "";
     const role = req.query.role || "";
-    const offset = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    let where = "WHERE 1=1";
-    let params = [];
+    const roleEnumValues = [
+      "ADMIN",
+      "MANAGEMENT",
+      "MERCHANDISER",
+      "CAD",
+      "SAMPLE_FABRIC",
+      "SAMPLE_ROOM",
+    ];
+
+    const orFilters = [
+      { userName: { contains: search } },
+      { employee: { is: { email: { contains: search } } } },
+      { employee: { is: { phoneNumber: { contains: search } } } },
+    ];
+
+    // Build where clause
+    let where = {};
     if (search) {
-      where += " AND (u.userName LIKE ? OR e.email LIKE ? OR e.phoneNumber LIKE ?)";
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      where.OR = orFilters;
     }
-    if (role) {
-      where += " AND u.role = ?";
-      params.push(role);
+    if (role && roleEnumValues.includes(role)) {
+      where.role = role;
     }
 
-    const [users] = await db.query(
-      `SELECT u.id, u.userName, u.role, e.email, e.phoneNumber
-       FROM users u
-       LEFT JOIN employees e ON u.employeeId = e.id
-       ${where}
-       ORDER BY u.userName DESC
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
+    // Fetch users with related employee data
+    const users = await prisma.user.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { userName: "desc" },
+      include: {
+        employee: {
+          select: {
+            phoneNumber: true,
+            email: true,
+          },
+        },
+      },
+    });
 
-    const [countRows] = await db.query(
-      `SELECT COUNT(*) as total FROM users u LEFT JOIN employees e ON u.employeeId = e.id ${where}`,
-      params
-    );
-    const totalUsers = countRows[0].total;
+    // Map the results to include only the requested fields
+    const formattedUsers = users.map((user) => ({
+      id: user.id,
+      userName: user.userName,
+      email: user.employee?.email || null,
+      role: user.role,
+      phoneNumber: user.employee?.phoneNumber || null,
+    }));
+
+    // Get total count with simplified where clause
+    // const totalUsers = await prisma.user.count({ where: countWhere });
+    const totalUsers = 0;
+    // Calculate pagination metadata
     const totalPages = Math.ceil(totalUsers / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
 
     res.status(200).json({
       success: true,
-      data: users,
+      data: formattedUsers,
       pagination: {
         currentPage: page,
         totalPages,
         totalUsers,
         limit,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
+        hasNextPage,
+        hasPrevPage,
         search: search || null,
       },
     });
@@ -156,6 +189,8 @@ export const getUsers = async (req, res) => {
       message: "Error fetching users",
       error: error.message,
     });
+  } finally {
+    await prisma.$disconnect();
   }
 };
 
@@ -176,26 +211,25 @@ export const toggleUserStatus = async (req, res) => {
     }
 
     // Check if user exists
-    const user = await req.db.query(
-      `SELECT * FROM users WHERE id = ?`,
-      [userId]
-    );
-    if (user.length === 0) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
     // Prevent modifying own status
-    if (user[0].id === req.user.id) {
+    if (user.id === req.user.id) {
       return res.status(400).json({ error: "Cannot modify own status" });
     }
 
     // Update user status
-    await req.db.query(
-      `UPDATE users SET status = ? WHERE id = ?`,
-      [status, userId]
-    );
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { status },
+    });
 
-    return res.status(200).json({ id: userId, status });
+    return res.status(200).json(updatedUser);
   } catch (error) {
     console.error(error);
     return res.status(403).json({ error: error.message });
@@ -246,25 +280,37 @@ export const updateUser = async (req, res) => {
     }
 
     // Update User + Employee
-    const updatedUser = await req.db.query(
-      `UPDATE users SET
-         userName = COALESCE(?, userName),
-         role = COALESCE(?, role)
-       WHERE id = ?`,
-      [userName, role, userId]
-    );
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(userName && { userName }),
+        ...(role && { role }),
+        employee:
+          email || customId
+            ? {
+                update: {
+                  ...(email && { email }),
+                  ...(customId && { customId }),
+                },
+              }
+            : undefined,
+      },
+      select: {
+        id: true,
+        userName: true,
+        role: true,
+        employee: {
+          select: {
+            id: true,
+            customId: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
 
-    if (email || customId) {
-      await req.db.query(
-        `UPDATE employees SET
-           email = COALESCE(?, email),
-           customId = COALESCE(?, customId)
-         WHERE id = (SELECT employeeId FROM users WHERE id = ?)`,
-        [email, customId, userId]
-      );
-    }
-
-    res.status(200).json({ id: userId, userName, role, email, customId });
+    res.status(200).json(updatedUser);
   } catch (error) {
     console.error("Error updating user:", error);
     if (error.code === "P2002") {
@@ -290,25 +336,25 @@ export const changePassword = async (req, res) => {
         .json({ error: "Old password and new password are required" });
     }
     // Check if the user exists
-    const user = await req.db.query(
-      `SELECT password FROM users WHERE id = ?`,
-      [id]
-    );
-    if (user.length === 0) {
+    const user = await prisma.user.findUnique({
+      where: { id: id },
+      select: { password: true },
+    });
+    if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
     // Verify old password
-    const isOldPasswordValid = await bcrypt.compare(oldPassword, user[0].password);
+    const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
     if (!isOldPasswordValid) {
       return res.status(401).json({ error: "Old password is incorrect" });
     }
     // Hash new password
     const hashedNewPassword = await bcrypt.hash(newPassword, 10);
     // Update user password
-    await req.db.query(
-      `UPDATE users SET password = ? WHERE id = ?`,
-      [hashedNewPassword, id]
-    );
+    await prisma.user.update({
+      where: { id: id },
+      data: { password: hashedNewPassword },
+    });
     return res.status(200).json({ message: "Password changed successfully" });
   } catch (error) {
     console.error(error);
@@ -319,6 +365,7 @@ export const changePassword = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+console.log(req.body);
     // Validate input
     if (!email || !password) {
       return res
@@ -330,27 +377,23 @@ export const login = async (req, res) => {
     const normalizedEmail = email.toLowerCase();
 
     // Find employee by email, including linked user
-    const db = req.db;
-    const [rows] = await db.query(
-      `SELECT e.*, u.id as userId, u.userName, u.password, u.role
-       FROM employees e
-       LEFT JOIN users u ON e.id = u.employeeId
-       WHERE e.email = ?`,
-      [normalizedEmail]
-    );
+    const employee = await req.prisma.employee.findUnique({
+      where: { email: normalizedEmail },
+      include: { user: true }, // Include the linked User
+    });
 
-    if (!rows || rows.length === 0) {
+    if (!employee) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const user = rows[0];
-
     // Check if employee has a linked user
-    if (!user.userId || !user.password) {
+    if (!employee.user) {
       return res
         .status(401)
         .json({ message: "No user account linked to this email" });
     }
+
+    const user = employee.user;
 
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -359,7 +402,7 @@ export const login = async (req, res) => {
     }
 
     // Check account status (now in Employee model)
-    if (user.status !== "ACTIVE") {
+    if (employee.status !== "ACTIVE") {
       return res.status(403).json({ message: "Account is not active" });
     }
 
@@ -375,12 +418,12 @@ export const login = async (req, res) => {
 
     // Generate new tokens
     const accessToken = jwt.sign(
-      { id: user.userId },
+      { id: user.id },
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: "1d" }
     );
     const refreshToken = jwt.sign(
-      { id: user.userId },
+      { id: user.id },
       process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: "7d" }
     );
@@ -396,7 +439,7 @@ export const login = async (req, res) => {
 
     return res.status(200).json({
       message: "Login successful",
-      user: { id: user.userId, name: user.userName, email: user.email, role: user.role },
+      user: { id: user.id, name: user.userName, email: employee.email, role: user.role },
     });
   } catch (error) {
     return res
@@ -428,13 +471,11 @@ export const logout = async (req, res) => {
 export const getUserInfo = async (req, res) => {
   const { userId } = req.body;
   // Check if the user exists
-  const user = await req.db.query(
-    `SELECT * FROM users WHERE id = ?`,
-    [userId]
-  );
-  if (user.length === 0) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+  if (!user) {
     return res.status(404).json({ error: "User not found" });
   }
-  return res.status(200).json(user[0]);
+  return res.status(200).json(user);
 };
-

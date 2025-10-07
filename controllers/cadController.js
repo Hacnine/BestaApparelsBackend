@@ -1,3 +1,6 @@
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
 export const createCadApproval = async (req, res) => {
   try {
     const { style, fileReceiveDate, completeDate, cadMasterName } = req.body;
@@ -5,13 +8,16 @@ export const createCadApproval = async (req, res) => {
     if (!style || !fileReceiveDate || !completeDate) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-    const cadApproval = await req.db.query(
-      `INSERT INTO cad_designs (style, fileReceiveDate, completeDate, CadMasterName, createdById)
-       VALUES (?, ?, ?, ?, ?)
-       RETURNING *`,
-      [style, new Date(fileReceiveDate), new Date(completeDate), cadMasterName || null, req.user.id]
-    );
-    res.status(201).json({ message: 'CAD Approval created successfully', data: cadApproval[0] });
+    const cadApproval = await prisma.cadDesign.create({
+      data: {
+        style,
+        fileReceiveDate: new Date(fileReceiveDate),
+        completeDate: new Date(completeDate),
+        CadMasterName: cadMasterName || null,
+        createdBy: { connect: { id: req.user.id } },
+      },
+    });
+    res.status(201).json({ message: 'CAD Approval created successfully', data: cadApproval });
   } catch (error) {
     console.error('Error creating CAD Approval:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
@@ -20,42 +26,49 @@ export const createCadApproval = async (req, res) => {
 
 export const getCadApproval = async (req, res) => {
   try {
-    const db = req.db;
     const { page = 1, pageSize = 10, search, startDate, endDate } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
     const take = parseInt(pageSize);
 
     // Build where clause
-    let whereClause = "WHERE createdById = ?";
-    const params = [req.user.id];
+    const where = {
+      // Only return cad approvals created by the current user
+      createdById: req.user && req.user.id ? req.user.id : undefined,
+    };
 
+    // Search by style or CadMasterName (case-insensitive)
     if (search) {
-      whereClause += " AND (style LIKE ? OR CadMasterName LIKE ?)";
-      params.push(`%${search}%`, `%${search}%`);
+      where.OR = [
+        { style: { contains: search } },
+        { CadMasterName: { contains: search } },
+      ];
     }
+
+    // Filter by fileReceiveDate range
     if (startDate && endDate) {
-      whereClause += " AND fileReceiveDate BETWEEN ? AND ?";
-      params.push(new Date(startDate), new Date(endDate));
+      where.fileReceiveDate = {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      };
     } else if (startDate) {
-      whereClause += " AND fileReceiveDate >= ?";
-      params.push(new Date(startDate));
+      where.fileReceiveDate = {
+        gte: new Date(startDate),
+      };
     } else if (endDate) {
-      whereClause += " AND fileReceiveDate <= ?";
-      params.push(new Date(endDate));
+      where.fileReceiveDate = {
+        lte: new Date(endDate),
+      };
     }
 
-    const [cadApprovals] = await db.query(
-      `SELECT * FROM cad_designs ${whereClause}
-       ORDER BY createdAt DESC
-       LIMIT ? OFFSET ?`,
-      [...params, take, skip]
-    );
-
-    const [totalResult] = await db.query(
-      `SELECT COUNT(*) as total FROM cad_designs ${whereClause}`,
-      params
-    );
-    const total = totalResult[0] ? totalResult[0].total : 0;
+    const [cadApprovals, total] = await Promise.all([
+      prisma.cadDesign.findMany({
+        skip,
+        take,
+        where,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.cadDesign.count({ where }),
+    ]);
 
     res.json({
       data: cadApprovals,
@@ -82,30 +95,19 @@ export const updateCadDesign = async (req, res) => {
       finalCompleteDate,
     } = req.body;
 
-    const updatedCad = await req.db.query(
-      `UPDATE cad_designs SET
-         ${style ? 'style = ?,' : ''}
-         ${fileReceiveDate ? 'fileReceiveDate = ?,' : ''}
-         ${completeDate ? 'completeDate = ?,' : ''}
-         ${CadMasterName !== undefined ? 'CadMasterName = ?,' : ''}
-         ${finalFileReceivedDate ? 'finalFileReceivedDate = ?,' : ''}
-         ${finalCompleteDate ? 'finalCompleteDate = ?,' : ''}
-         updatedAt = ?
-       WHERE id = ?
-       RETURNING *`,
-      [
-        ...(style ? [style] : []),
-        ...(fileReceiveDate ? [new Date(fileReceiveDate)] : []),
-        ...(completeDate ? [new Date(completeDate)] : []),
-        ...(CadMasterName !== undefined ? [CadMasterName] : []),
-        ...(finalFileReceivedDate ? [new Date(finalFileReceivedDate)] : []),
-        ...(finalCompleteDate ? [new Date(finalCompleteDate)] : []),
-        new Date(),
-        id,
-      ]
-    );
+    const updatedCad = await prisma.cadDesign.update({
+      where: { id },
+      data: {
+        ...(style && { style }),
+        ...(fileReceiveDate && { fileReceiveDate: new Date(fileReceiveDate) }),
+        ...(completeDate && { completeDate: new Date(completeDate) }),
+        ...(CadMasterName !== undefined && { CadMasterName }),
+        ...(finalFileReceivedDate && { finalFileReceivedDate: new Date(finalFileReceivedDate) }),
+        ...(finalCompleteDate && { finalCompleteDate: new Date(finalCompleteDate) }),
+      },
+    });
 
-    res.json({ message: 'CAD Design updated successfully', data: updatedCad[0] });
+    res.json({ message: 'CAD Design updated successfully', data: updatedCad });
   } catch (error) {
     console.error('Error updating CAD Design:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
@@ -115,7 +117,9 @@ export const updateCadDesign = async (req, res) => {
 export const deleteCadDesign = async (req, res) => {
   try {
     const { id } = req.params;
-    await req.db.query(`DELETE FROM cad_designs WHERE id = ?`, [id]);
+    await prisma.cadDesign.delete({
+      where: { id },
+    });
     res.json({ message: 'CAD Design deleted successfully' });
   } catch (error) {
     console.error('Error deleting CAD Design:', error);

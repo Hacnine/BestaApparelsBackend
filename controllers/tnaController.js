@@ -1,3 +1,4 @@
+import { PrismaClient } from "@prisma/client";
 import {
   validateDates,
   validateBuyer,
@@ -5,11 +6,11 @@ import {
   validateAuth,
   isDhlTrackingComplete,
 } from "../utils/validationUtils.js";
+const prisma = new PrismaClient();
 
 // Get all TNAs with optional filters
 export async function getTNAs(req, res) {
   try {
-    const db = req.db;
     const {
       status,
       merchandiser,
@@ -19,53 +20,61 @@ export async function getTNAs(req, res) {
       page = 1,
       pageSize = 10,
     } = req.query;
-    // Build SQL WHERE clause
-    let where = "WHERE 1=1";
-    const params = [];
-    if (req.user && req.user.id) {
-      where += " AND createdById = ?";
-      params.push(req.user.id);
-    }
-    if (status && status !== "all") {
-      where += " AND status = ?";
-      params.push(status);
-    }
-    if (merchandiser) {
-      where += " AND userId = ?";
-      params.push(merchandiser);
-    }
-    if (buyer) {
-      where += " AND buyerId = ?";
-      params.push(buyer);
-    }
-    if (style) {
-      where += " AND style = ?";
-      params.push(style);
-    }
+    const where = {
+      // Only return TNAs created by the current user
+      createdById: req.user && req.user.id ? req.user.id : undefined,
+    };
+    if (status && status !== "all") where.status = status;
+    if (merchandiser) where.userId = merchandiser; // merchandiser is userId
+    if (buyer) where.buyerId = buyer; // buyer is buyerId
+    if (style) where.style = style;
     if (search) {
-      where += " AND (style LIKE ? OR itemName LIKE ?)";
-      params.push(`%${search}%`, `%${search}%`);
+      where.OR = [
+        { style: { contains: search } },
+        { itemName: { contains: search } },
+        { buyer: { name: { contains: search } } },
+      ];
     }
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
     const take = parseInt(pageSize);
 
-    const [tnas] = await db.query(
-      `SELECT t.*, b.id as buyerId, b.name as buyerName, b.country, b.buyerDepartmentId,
-        u.id as merchandiserId, u.userName as merchandiserUserName, u.role as merchandiserRole, u.employeeId as merchandiserEmployeeId
-        FROM tnas t
-        LEFT JOIN buyers b ON t.buyerId = b.id
-        LEFT JOIN users u ON t.userId = u.id
-        ${where}
-        ORDER BY t.createdAt DESC
-        LIMIT ? OFFSET ?`,
-      [...params, take, skip]
-    );
-
-    const [countRows] = await db.query(
-      `SELECT COUNT(*) as total FROM tnas ${where}`,
-      params
-    );
-    const total = countRows[0].total;
+    const [tnas, total] = await Promise.all([
+      prisma.tNA.findMany({
+        where,
+        select: {
+          id: true,
+          style: true,
+          itemName: true,
+          itemImage: true,
+          sampleSendingDate: true,
+          orderDate: true,
+          status: true,
+          sampleType: true,
+          createdAt: true,
+          updatedAt: true,
+          buyer: {
+            select: {
+              id: true,
+              name: true,
+              country: true,
+              buyerDepartmentId: true,
+            },
+          },
+          merchandiser: {
+            select: {
+              id: true,
+              userName: true,
+              role: true,
+              employeeId: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+      prisma.tNA.count({ where }),
+    ]);
 
     res.json({
       data: tnas,
@@ -82,7 +91,6 @@ export async function getTNAs(req, res) {
 // Create TNA
 export const createTna = async (req, res) => {
   try {
-    const db = req.db;
     const {
       buyerId,
       style,
@@ -119,7 +127,7 @@ export const createTna = async (req, res) => {
     }
 
     // Create new TNA
-    const tna = await db.tna.create({
+    const tna = await prisma.tNA.create({
       data: {
         buyer: { connect: { id: buyerId } },
         style,
@@ -155,7 +163,6 @@ export const createTna = async (req, res) => {
 // Update TNA
 export async function updateTNA(req, res) {
   try {
-    const db = req.db;
     const { id } = req.params;
     let data = req.body;
 
@@ -163,7 +170,7 @@ export async function updateTNA(req, res) {
     if (data.buyerId === "") delete data.buyerId;
     if (data.userId === "") delete data.userId;
 
-    const tna = await db.tna.update({ where: { id }, data });
+    const tna = await prisma.tNA.update({ where: { id }, data });
     res.json(tna);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -173,9 +180,8 @@ export async function updateTNA(req, res) {
 // Delete TNA
 export async function deleteTNA(req, res) {
   try {
-    const db = req.db;
     const { id } = req.params;
-    await db.tna.delete({ where: { id } });
+    await prisma.tNA.delete({ where: { id } });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -201,58 +207,76 @@ export async function getDepartmentProgress(req, res) {
 // Get TNA summary (omit updatedAt, createdAt, status)
 export async function getTNASummary(req, res) {
   try {
-    const db = req.db;
     const { page = 1, pageSize = 10, search, startDate, endDate, completed = "false" } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
     const take = parseInt(pageSize);
 
-    // Build SQL WHERE clause
-    let where = "WHERE 1=1";
-    const params = [];
-    if (req.user && req.user.id && req.user.role === "MERCHANDISER") {
-      where += " AND createdById = ?";
-      params.push(req.user.id);
+    // Build where clause for search
+    const where = {};
+
+    // Only return TNAs created by the current user if role is MERCHANDISER
+    if (
+      req.user &&
+      req.user.id &&
+      req.user.role === "MERCHANDISER"
+    ) {
+      where.createdById = req.user.id;
     }
+
+    // Search by name (style, itemName, buyerName, merchandiser)
     if (search) {
-      where += " AND (style LIKE ? OR itemName LIKE ?)";
-      params.push(`%${search}%`, `%${search}%`);
+      where.OR = [
+        { style: { contains: search } },
+        { itemName: { contains: search } },
+        { buyer: { name: { contains: search } } },
+        {
+          merchandiser: { userName: { contains: search } },
+        },
+      ];
     }
+
+    // Search by date range (sampleSendingDate)
     if (startDate && endDate) {
-      where += " AND sampleSendingDate BETWEEN ? AND ?";
-      params.push(new Date(startDate), new Date(endDate));
+      where.sampleSendingDate = {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      };
     } else if (startDate) {
-      where += " AND sampleSendingDate >= ?";
-      params.push(new Date(startDate));
+      where.sampleSendingDate = {
+        gte: new Date(startDate),
+      };
     } else if (endDate) {
-      where += " AND sampleSendingDate <= ?";
-      params.push(new Date(endDate));
+      where.sampleSendingDate = {
+        lte: new Date(endDate),
+      };
     }
 
     // Fetch all TNAs (before pagination) to filter by DHLTracking if needed
-    const [allTnas] = await db.query(
-      `SELECT t.id, t.style, t.itemName, t.itemImage, t.sampleSendingDate, t.orderDate, t.sampleType, t.userId,
-        b.name as buyerName, u.userName as merchandiserUserName
-        FROM tnas t
-        LEFT JOIN buyers b ON t.buyerId = b.id
-        LEFT JOIN users u ON t.userId = u.id
-        ${where}
-        ORDER BY t.createdAt DESC`,
-      params
-    );
+    let allTnas = await prisma.tNA.findMany({
+      where,
+      select: {
+        id: true,
+        buyer: { select: { name: true } },
+        style: true,
+        itemName: true,
+        itemImage: true,
+        sampleSendingDate: true,
+        orderDate: true,
+        merchandiser: { select: { userName: true } },
+        sampleType: true,
+        userId: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
     // If completed filter is provided, filter TNAs by DHLTracking's isComplete
-    let filteredTnas = allTnas;
     if (completed === "true" || completed === "false") {
       const styles = allTnas.map(tna => tna.style);
-      let dhlTrackings = [];
-      if (styles.length > 0) {
-        const placeholders = styles.map(() => '?').join(',');
-        const [rows] = await db.query(
-          `SELECT style, isComplete FROM dhl_trackings WHERE style IN (${placeholders})`,
-          styles
-        );
-        dhlTrackings = rows;
-      }
+      // Get all DHLTracking for these styles
+      const dhlTrackings = await prisma.dHLTracking.findMany({
+        where: { style: { in: styles } },
+        select: { style: true, isComplete: true },
+      });
       // Build a map: style -> array of isComplete values
       const dhlMap = new Map();
       dhlTrackings.forEach(dhl => {
@@ -267,7 +291,7 @@ export async function getTNASummary(req, res) {
             .filter(([style, arr]) => arr.some(isC => isC === true))
             .map(([style]) => style)
         );
-        filteredTnas = allTnas.filter(tna => completedStyles.has(tna.style));
+        allTnas = allTnas.filter(tna => completedStyles.has(tna.style));
       } else {
         // Only styles where all DHLTracking isComplete === false OR no DHLTracking exists
         const incompleteStyles = new Set(
@@ -279,58 +303,77 @@ export async function getTNASummary(req, res) {
               return arr.every(isC => isC === false);
             })
         );
-        filteredTnas = allTnas.filter(tna => incompleteStyles.has(tna.style));
+        allTnas = allTnas.filter(tna => incompleteStyles.has(tna.style));
       }
     }
 
     // Pagination after filtering
-    const total = filteredTnas.length;
-    const pagedTnas = filteredTnas.slice(skip, skip + take);
+    const total = allTnas.length;
+    const pagedTnas = allTnas.slice(skip, skip + take);
 
     const summary = await Promise.all(
       pagedTnas.map(async (tna) => {
         // Get all cadDesign fields for the matching style
-        const [cadRows] = await db.query(
-          `SELECT * FROM cad_designs WHERE style = ? LIMIT 1`,
-          [tna.style]
-        );
-        const cad = cadRows[0] || null;
+        const cad = await prisma.cadDesign.findFirst({
+          where: { style: tna.style },
+        });
 
         // Get FabricBooking for the style, omit createdAt and updatedAt
-        const [fabricRows] = await db.query(
-          `SELECT id, style, bookingDate, receiveDate, actualBookingDate, actualReceiveDate FROM fabric_bookings WHERE style = ? LIMIT 1`,
-          [tna.style]
-        );
-        const fabricBooking = fabricRows[0] || null;
+        const fabricBooking = await prisma.fabricBooking.findFirst({
+          where: { style: tna.style },
+          select: {
+            id: true,
+            style: true,
+            bookingDate: true,
+            receiveDate: true,
+            actualBookingDate: true,
+            actualReceiveDate: true,
+          },
+        });
 
         // Get SampleDevelopment for the style, omit createdAt and updatedAt
-        const [sampleRows] = await db.query(
-          `SELECT id, style, samplemanName, sampleReceiveDate, sampleCompleteDate, actualSampleReceiveDate, actualSampleCompleteDate, sampleQuantity FROM sample_developments WHERE style = ? LIMIT 1`,
-          [tna.style]
-        );
-        const sampleDevelopment = sampleRows[0] || null;
+        const sampleDevelopment = await prisma.sampleDevelopment.findFirst({
+          where: { style: tna.style },
+          select: {
+            id: true,
+            style: true,
+            samplemanName: true,
+            sampleReceiveDate: true,
+            sampleCompleteDate: true,
+            actualSampleReceiveDate: true,
+            actualSampleCompleteDate: true,
+            sampleQuantity: true,
+          },
+        });
 
         // Get DHLTracking for the style, only needed fields
-        const [dhlRows] = await db.query(
-          `SELECT date, trackingNumber, isComplete FROM dhl_trackings WHERE style = ? LIMIT 1`,
-          [tna.style]
-        );
-        const dhlTracking = dhlRows[0] || null;
+        let dhlTracking = await prisma.dHLTracking.findFirst({
+          where: { style: tna.style },
+          select: {
+            date: true,
+            trackingNumber: true,
+            isComplete: true,
+          },
+        });
+
+        // If not found, set to null
+        if (!dhlTracking) dhlTracking = null;
 
         return {
           ...tna,
-          merchandiser: tna.merchandiserUserName || null,
-          buyerName: tna.buyerName || null,
+          merchandiser: tna.merchandiser?.userName || null,
+          buyerName: tna.buyer?.name || null,
           cad,
-          fabricBooking,
-          sampleDevelopment,
-          dhlTracking,
+          fabricBooking, // will be null if not found
+          sampleDevelopment, // will be null if not found
+          dhlTracking, // will be null if not found
         };
       })
     );
 
+    const cleaned = summary.map(({ buyer, ...rest }) => rest);
     res.json({
-      data: summary,
+      data: cleaned,
       page: parseInt(page),
       pageSize: parseInt(pageSize),
       total,
@@ -345,31 +388,32 @@ export async function getTNASummary(req, res) {
 // Summary Card Function
 export async function getTNASummaryCard(req, res) {
   try {
-    const db = req.db;
-    let whereClause = '';
-    let params = [];
+    // Build where clause for filtering TNAs
+    const where = {};
     if (req.user && req.user.id && req.user.role === "MERCHANDISER") {
-      whereClause = 'WHERE createdById = ?';
-      params.push(req.user.id);
+      where.createdById = req.user.id;
     }
 
-    // Fetch all TNAs with style, sampleSendingDate
-    const [tnas] = await db.query(
-      `SELECT id, style, sampleSendingDate FROM tnas ${whereClause}`,
-      params
-    );
+    // Fetch all TNAs with style, sampleSendingDate, and related DHLTracking
+    const tnas = await prisma.tNA.findMany({
+      where,
+      select: {
+        id: true,
+        style: true,
+        sampleSendingDate: true,
+      },
+    });
 
     // Fetch all DHLTracking records for these styles
-    const styles = tnas.map(tna => tna.style);
-    let dhlTrackings = [];
-    if (styles.length > 0) {
-      const placeholders = styles.map(() => '?').join(',');
-      const [rows] = await db.query(
-        `SELECT style, isComplete, date FROM dhl_trackings WHERE style IN (${placeholders})`,
-        styles
-      );
-      dhlTrackings = rows;
-    }
+    const styles = tnas.map((tna) => tna.style);
+    const dhlTrackings = await prisma.dHLTracking.findMany({
+      where: { style: { in: styles } },
+      select: {
+        style: true,
+        isComplete: true,
+        date: true,
+      },
+    });
 
     // Build a map for quick lookup (style -> array of DHLTracking)
     const dhlMap = {};
@@ -383,7 +427,7 @@ export async function getTNASummaryCard(req, res) {
     let overdue = 0;
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0); 
 
     tnas.forEach((tna) => {
       const dhlArr = dhlMap[tna.style] || [];
@@ -429,46 +473,43 @@ export async function getTNASummaryCard(req, res) {
 // Department Progress API (dynamic)
 export async function getDepartmentProgressV2(req, res) {
   try {
-    const db = req.db;
     // Only TNAs visible to the user (MERCHANDISER: own, others: all)
-    let whereClause = '';
-    let params = [];
+    const where = {};
     if (req.user && req.user.id && req.user.role === "MERCHANDISER") {
-      whereClause = 'WHERE createdById = ?';
-      params.push(req.user.id);
+      where.createdById = req.user.id;
     }
 
     // Get all TNAs (style, id)
-    const [tnas] = await db.query(
-      `SELECT id, style FROM tnas ${whereClause}`,
-      params
-    );
+    const tnas = await prisma.tNA.findMany({
+      where,
+      select: { id: true, style: true }
+    });
     const styles = tnas.map(tna => tna.style);
 
-    let cadDesigns = [], fabricBookings = [], sampleDevelopments = [], dhlTrackings = [];
-    if (styles.length > 0) {
-      const placeholders = styles.map(() => '?').join(',');
-      // CAD
-      [cadDesigns] = await db.query(
-        `SELECT style, finalCompleteDate FROM cad_designs WHERE style IN (${placeholders})`,
-        styles
-      );
-      // Fabric
-      [fabricBookings] = await db.query(
-        `SELECT style, actualReceiveDate FROM fabric_bookings WHERE style IN (${placeholders})`,
-        styles
-      );
-      // Sample
-      [sampleDevelopments] = await db.query(
-        `SELECT style, actualSampleCompleteDate FROM sample_developments WHERE style IN (${placeholders})`,
-        styles
-      );
-      // DHL
-      [dhlTrackings] = await db.query(
-        `SELECT style FROM dhl_trackings WHERE style IN (${placeholders})`,
-        styles
-      );
-    }
+    // Fetch all related records in batch
+    const [
+      cadDesigns,
+      fabricBookings,
+      sampleDevelopments,
+      dhlTrackings
+    ] = await Promise.all([
+      prisma.cadDesign.findMany({
+        where: { style: { in: styles } },
+        select: { style: true, finalCompleteDate: true }
+      }),
+      prisma.fabricBooking.findMany({
+        where: { style: { in: styles } },
+        select: { style: true, actualReceiveDate: true }
+      }),
+      prisma.sampleDevelopment.findMany({
+        where: { style: { in: styles } },
+        select: { style: true, actualSampleCompleteDate: true }
+      }),
+      prisma.dHLTracking.findMany({
+        where: { style: { in: styles } },
+        select: { style: true }
+      })
+    ]);
 
     // Build lookup maps for quick access
     const cadMap = new Map();
