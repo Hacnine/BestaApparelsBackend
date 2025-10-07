@@ -1,0 +1,113 @@
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  userName VARCHAR(255) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL,
+  role VARCHAR(50) NOT NULL,
+  employeeId INT UNIQUE,
+  status VARCHAR(20) DEFAULT 'ACTIVE'
+);
+
+CREATE TABLE employees (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  customId VARCHAR(255) NOT NULL UNIQUE,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  phoneNumber VARCHAR(50),
+  status VARCHAR(20) DEFAULT 'ACTIVE',
+  designation VARCHAR(255),
+  department VARCHAR(255)
+);
+
+CREATE TABLE departments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  contactPerson VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE buyers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  country VARCHAR(255) NOT NULL,
+  buyerDepartmentId INT
+);
+
+CREATE TABLE tnas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  createdById INT,
+  buyerId INT,
+  style VARCHAR(255) NOT NULL,
+  itemName VARCHAR(255) NOT NULL,
+  itemImage VARCHAR(255),
+  sampleSendingDate DATETIME NOT NULL,
+  orderDate DATETIME NOT NULL,
+  userId INT,
+  status VARCHAR(20) DEFAULT 'ACTIVE',
+  sampleType VARCHAR(20) DEFAULT 'DVP',
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE audit_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+  user VARCHAR(255),
+  userRole VARCHAR(255),
+  action VARCHAR(255),
+  resource VARCHAR(255),
+  resourceId VARCHAR(255),
+  description TEXT,
+  ipAddress VARCHAR(255),
+  userAgent VARCHAR(255),
+  status VARCHAR(255)
+);
+
+CREATE TABLE cad_designs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  createdById INT,
+  style VARCHAR(255) NOT NULL,
+  fileReceiveDate DATETIME NOT NULL,
+  completeDate DATETIME NOT NULL,
+  CadMasterName VARCHAR(255),
+  finalFileReceivedDate DATETIME,
+  finalCompleteDate DATETIME,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE fabric_bookings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  createdById INT,
+  style VARCHAR(255) NOT NULL,
+  bookingDate DATETIME NOT NULL,
+  receiveDate DATETIME NOT NULL,
+  actualBookingDate DATETIME,
+  actualReceiveDate DATETIME,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE sample_developments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  createdById INT,
+  style VARCHAR(255) NOT NULL,
+  samplemanName VARCHAR(255) NOT NULL,
+  sampleReceiveDate DATETIME NOT NULL,
+  sampleCompleteDate DATETIME NOT NULL,
+  actualSampleReceiveDate DATETIME,
+  actualSampleCompleteDate DATETIME,
+  sampleQuantity INT NOT NULL,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE dhl_trackings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  style VARCHAR(255) NOT NULL,
+  date DATETIME NOT NULL,
+  trackingNumber VARCHAR(255) NOT NULL,
+  isComplete BOOLEAN DEFAULT FALSE,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Add foreign keys and indexes as needed for your app logic.
