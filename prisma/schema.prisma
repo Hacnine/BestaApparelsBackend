@@ -32,39 +32,6 @@ enum DEPARTMENTS {
   SAMPLE_SEWING
 }
 
-
-model Employee {
-  id          Int     @id @default(autoincrement())
-  customId    String  @unique
-  name        String
-  email       String  @unique
-  phoneNumber String?
-  status      Status
-  designation String
-  department  DEPARTMENTS
-  user        User?   @relation
-
-  @@map("employees")
-}
-
-model User {
-  id         Int       @id @default(autoincrement())
-  userName   String    @unique
-  password   String
-  role       Role
-  employeeId Int       @unique
-  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  tnas       TNA[]     @relation(name: "TNAtoMerchandiser") // One-to-many relation
-
-  // Add opposite relations for createdBy
-  createdTnas            TNA[]              @relation("UserCreatedTnas")
-  createdCadDesigns      CadDesign[]        @relation("UserCreatedCadDesigns")
-  createdFabricBookings  FabricBooking[]    @relation("UserCreatedFabricBookings")
-  createdSampleDevelopments SampleDevelopment[] @relation("UserCreatedSampleDevelopments")
-
-  @@map("users")
-}
-
 enum TNAStatus {
   ACTIVE
   CANCELLED
@@ -80,12 +47,60 @@ enum sampleType {
   PP5
 }
 
+model Employee {
+  id          Int         @id @default(autoincrement())
+  customId    String      @unique
+  name        String
+  email       String      @unique
+  phoneNumber String?
+  status      Status
+  designation String
+  department  DEPARTMENTS
+  user        User?       @relation
+
+  @@map("employees")
+}
+
+model User {
+  id         Int       @id @default(autoincrement())
+  userName   String    @unique
+  password   String
+  role       Role
+  employeeId Int       @unique
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tnas       TNA[]     @relation(name: "TNAtoMerchandiser") // One-to-many relation
+
+  // Add opposite relations for createdBy
+  createdTnas               TNA[]               @relation("UserCreatedTnas")
+  createdCadDesigns         CadDesign[]         @relation("UserCreatedCadDesigns")
+  createdFabricBookings     FabricBooking[]     @relation("UserCreatedFabricBookings")
+  createdSampleDevelopments SampleDevelopment[] @relation("UserCreatedSampleDevelopments")
+  createdCostSheets         CostSheet[]         @relation("UserCreatedCostSheets")
+
+  @@map("users")
+}
+
+model Style {
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  // tnas               TNA[]               @relation(name: "StyleToTNA")
+  // fabricBookings     FabricBooking[]     @relation(name: "StyleToFabricBooking")
+  // sampleDevelopments SampleDevelopment[] @relation(name: "StyleToSampleDevelopment")
+  // cadDesigns         CadDesign[]         @relation(name: "StyleToCadDesign")
+  // dhlTrackings       DHLTracking[]       @relation(name: "StyleToDHLTracking")
+  costSheets         CostSheet[]        @relation(name: "StyleToCostSheet")
+
+  @@map("styles")
+}
+
 model TNA {
   id                Int        @id @default(autoincrement())
   createdById       Int?
   createdBy         User?      @relation("UserCreatedTnas", fields: [createdById], references: [id])
   buyer             Buyer?     @relation(fields: [buyerId], references: [id], name: "TNAtoBuyer")
-  buyerId           Int?       // One-to-many, no @unique
+  buyerId           Int? // One-to-many, no @unique
   style             String
   itemName          String
   itemImage         String?
@@ -94,7 +109,7 @@ model TNA {
   merchandiser      User?      @relation(fields: [userId], references: [id], name: "TNAtoMerchandiser")
   status            TNAStatus  @default(ACTIVE)
   sampleType        sampleType
-  userId            Int?       // No @unique for one-to-many
+  userId            Int? // No @unique for one-to-many
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -154,24 +169,24 @@ model CadDesign {
 }
 
 model FabricBooking {
-  id                Int      @id @default(autoincrement())
+  id                Int       @id @default(autoincrement())
   createdById       Int?
-  createdBy         User?    @relation("UserCreatedFabricBookings", fields: [createdById], references: [id])
+  createdBy         User?     @relation("UserCreatedFabricBookings", fields: [createdById], references: [id])
   style             String
   bookingDate       DateTime
   receiveDate       DateTime
   actualBookingDate DateTime?
   actualReceiveDate DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@map("fabric_bookings")
 }
 
 model SampleDevelopment {
-  id                       Int      @id @default(autoincrement())
+  id                       Int       @id @default(autoincrement())
   createdById              Int?
-  createdBy                User?    @relation("UserCreatedSampleDevelopments", fields: [createdById], references: [id])
+  createdBy                User?     @relation("UserCreatedSampleDevelopments", fields: [createdById], references: [id])
   style                    String
   samplemanName            String
   sampleReceiveDate        DateTime
@@ -179,25 +194,47 @@ model SampleDevelopment {
   actualSampleReceiveDate  DateTime?
   actualSampleCompleteDate DateTime?
   sampleQuantity           Int
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   @@map("sample_developments")
 }
 
 model DHLTracking {
-  id                Int      @id @default(autoincrement())
-  style             String
-  date              DateTime
-  trackingNumber    String
-  isComplete        Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  style          String
+  date           DateTime
+  trackingNumber String
+  isComplete     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@map("dhl_trackings")
 }
 
+model CostSheet {
+  id          Int      @id @default(autoincrement())
+  styleId     Int
+  style       Style    @relation("StyleToCostSheet", fields: [styleId], references: [id])
+  createdById Int
+  createdBy   User     @relation("UserCreatedCostSheets", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
+  cadRows    Json
+  fabricRows Json
+  trimsRows  Json
+  othersRows Json
+
+  factoryCM            Float
+  profitPercent        Float
+  totalFabricCost      Float
+  totalAccessoriesCost Float
+  totalCost            Float
+  fobPrice             Float
+  pricePerPiece        Float
+
+}
 
 // node combine-schema.js
 // npx prisma db push

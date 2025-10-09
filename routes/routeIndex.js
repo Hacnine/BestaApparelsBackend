@@ -11,6 +11,7 @@ import sampleDevelopmentRoute from "./sampleDevelopementRoutes.js";
 import fabricBookingRoute from "./fabricBookingRoute.js";
 import dhlTrackingRoute from "./dHLTrackingRoute.js";
 import buyerRouter from "./buyerRoutes.js";
+import costSheetRoutes from "./costSheetRoutes.js";
 
 const apiRoute = Router();
 
@@ -25,5 +26,6 @@ apiRoute.use("/sample-developments", sampleDevelopmentRoute);
 apiRoute.use("/fabric-booking", fabricBookingRoute);
 apiRoute.use("/dhl-tracking", dhlTrackingRoute);
 apiRoute.use("/buyers", buyerRouter);
+apiRoute.use("/cost-sheets", costSheetRoutes);
 
 export default apiRoute;

@@ -1,0 +1,7 @@
+UPDATE employees SET department = 'MERCHANDISING' WHERE department = 'Merchandising';
+UPDATE employees SET department = 'CAD_ROOM' WHERE department = 'CAD Room';
+UPDATE employees SET department = 'SAMPLE_FABRIC' WHERE department = 'Sample Fabric';
+UPDATE employees SET department = 'SAMPLE_SEWING' WHERE department = 'Sample Room';
+-- If you have "Management" or "IT" as old values, update them too:
+UPDATE employees SET department = 'MANAGEMENT' WHERE department = 'Management';
+UPDATE employees SET department = 'IT' WHERE department = 'IT';
