@@ -14,7 +14,7 @@ export const createDepartment = async (req, res) => {
     const department = await prisma.department.create({
       data: {
         name,
-        contactPerson
+        contactPerson,
       },
     });
 
@@ -53,15 +53,10 @@ export const getDepartments = async (req, res) => {
 
 export const getMerchandisers = async (req, res) => {
   try {
-    const merchandisers = await prisma.user.findMany({
+    const merchandisers = await prisma.employee.findMany({
       where: {
-        role: "MERCHANDISER",
-        employee: {
-          status: "ACTIVE",
-        },
-      },
-      include: {
-        employee: true,
+        department: "MERCHANDISING",
+        status: "ACTIVE",
       },
     });
     // Remove password from each user object
@@ -71,8 +66,3 @@ export const getMerchandisers = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
-
-
-
-

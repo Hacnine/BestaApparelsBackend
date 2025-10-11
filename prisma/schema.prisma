@@ -225,15 +225,9 @@ model CostSheet {
   fabricRows Json
   trimsRows  Json
   othersRows Json
+  summaryRows Json
 
-  factoryCM            Float
-  profitPercent        Float
-  totalFabricCost      Float
-  totalAccessoriesCost Float
-  totalCost            Float
-  fobPrice             Float
-  pricePerPiece        Float
-
+  @@map("cost_sheets")
 }
 
 // node combine-schema.js

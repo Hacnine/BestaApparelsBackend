@@ -52,28 +52,31 @@ export const createCostSheet = async (req, res) => {
     if (!style) {
       style = await prisma.style.create({ data: { name: data.style } });
     }
-    // For demo, use createdById = 1 (replace with actual user id)
-    const createdById = data.createdById || 1;
+  
+
+    // Ensure all JSON fields are present
+    const cadRows = data.cadConsumption ?? {};
+    const fabricRows = data.fabricCost ?? {};
+    const trimsRows = data.trimsAccessories ?? {};
+    const othersRows = data.others ?? {};
+    const summaryRows = data.summary ?? {};
+
     const costSheet = await prisma.costSheet.create({
       data: {
         styleId: style.id,
-        createdById,
-        cadRows: data.cadConsumption,
-        fabricRows: data.fabricCost,
-        trimsRows: data.trimsAccessories,
-        othersRows: data.others,
-        factoryCM: data.summary.factoryCM,
-        profitPercent: data.summary.profitPercentage,
-        totalFabricCost: data.summary.fabricCost,
-        totalAccessoriesCost: data.summary.accessoriesCost,
-        totalCost: data.summary.totalCost,
-        fobPrice: data.summary.fobPrice,
-        pricePerPiece: data.summary.pricePerPiece,
+        createdById: { connect: { id: req.user.id } },
+        cadRows,
+        fabricRows,
+        trimsRows,
+        othersRows,
+        summaryRows,
       },
     });
     res.status(201).json(costSheet);
   } catch (error) {
-    res.status(500).json({ error: "Failed to create cost sheet" });
+    console.error("Create CostSheet Error:", error);
+    console.error("Incoming Data:", req.body);
+    res.status(500).json({ error: "Failed to create cost sheet", details: error.message });
   }
 };
 
