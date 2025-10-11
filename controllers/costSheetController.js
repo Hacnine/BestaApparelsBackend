@@ -6,7 +6,12 @@ export const getAllCostSheets = async (req, res) => {
     const costSheets = await prisma.costSheet.findMany({
       include: { style: true, createdBy: true },
     });
-    res.json(costSheets);
+    // Remove password from createdBy
+    const sanitized = costSheets.map((cs) => ({
+      ...cs,
+      createdBy: cs.createdBy ? { ...cs.createdBy, password: undefined } : cs.createdBy,
+    }));
+    res.json(sanitized);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch cost sheets" });
   }
@@ -20,6 +25,8 @@ export const getCostSheetById = async (req, res) => {
       include: { style: true, createdBy: true },
     });
     if (!costSheet) return res.status(404).json({ error: "Not found" });
+    // Remove password from createdBy
+    if (costSheet.createdBy) costSheet.createdBy.password = undefined;
     res.json(costSheet);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch cost sheet" });
@@ -29,16 +36,22 @@ export const getCostSheetById = async (req, res) => {
 export const checkStyle = async (req, res) => {
   try {
     const { style } = req.query;
+
     if (!style) return res.status(400).json({ error: "Style is required" });
     const styleRecord = await prisma.style.findFirst({
       where: { name: String(style) },
       include: { costSheets: { include: { createdBy: true } } },
     });
     if (styleRecord && styleRecord.costSheets.length > 0) {
-      const creatorName = styleRecord.costSheets[0].createdBy?.userName || "";
+      const creator = styleRecord.costSheets[0].createdBy;
+      const creatorName = creator?.userName || "";
+      // Remove password from creator
+      if (creator) creator.password = undefined;
       return res.json({ exists: true, creatorName });
     }
-    return res.json({ exists: false });
+    else {
+      return res.json({ exists: false });
+    }
   } catch (error) {
     res.status(500).json({ error: "Failed to check style" });
   }
@@ -47,12 +60,16 @@ export const checkStyle = async (req, res) => {
 export const createCostSheet = async (req, res) => {
   try {
     const data = req.body;
+    // Convert style to lowercase for letters only
+    const normalizedStyle = typeof data.style === "string"
+      ? data.style.replace(/[A-Za-z]+/g, match => match.toLowerCase())
+      : data.style;
+
     // Find or create style
-    let style = await prisma.style.findFirst({ where: { name: data.style } });
+    let style = await prisma.style.findFirst({ where: { name: normalizedStyle } });
     if (!style) {
-      style = await prisma.style.create({ data: { name: data.style } });
+      style = await prisma.style.create({ data: { name: normalizedStyle } });
     }
-  
 
     // Ensure all JSON fields are present
     const cadRows = data.cadConsumption ?? {};
@@ -61,10 +78,18 @@ export const createCostSheet = async (req, res) => {
     const othersRows = data.others ?? {};
     const summaryRows = data.summary ?? {};
 
+    // Save all required fields from frontend
     const costSheet = await prisma.costSheet.create({
       data: {
         styleId: style.id,
-        createdById: { connect: { id: req.user.id } },
+        item: data.item,
+        group: data.group,
+        size: data.size,
+        fabricType: data.fabricType,
+        gsm: data.gsm,
+        color: data.color,
+        quantity: Number(data.qty) || 0,
+        createdById: req.user.id,
         cadRows,
         fabricRows,
         trimsRows,
