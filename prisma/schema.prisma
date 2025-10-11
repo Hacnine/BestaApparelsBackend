@@ -62,15 +62,13 @@ model Employee {
 }
 
 model User {
-  id         Int       @id @default(autoincrement())
-  userName   String    @unique
-  password   String
-  role       Role
-  employeeId Int       @unique
-  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  tnas       TNA[]     @relation(name: "TNAtoMerchandiser") // One-to-many relation
-
-  // Add opposite relations for createdBy
+  id                        Int                 @id @default(autoincrement())
+  userName                  String              @unique
+  password                  String
+  role                      Role
+  employeeId                Int                 @unique
+  employee                  Employee?           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tnas                      TNA[]               @relation(name: "TNAtoMerchandiser")
   createdTnas               TNA[]               @relation("UserCreatedTnas")
   createdCadDesigns         CadDesign[]         @relation("UserCreatedCadDesigns")
   createdFabricBookings     FabricBooking[]     @relation("UserCreatedFabricBookings")
@@ -81,16 +79,16 @@ model User {
 }
 
 model Style {
-  id                 Int                 @id @default(autoincrement())
-  name               String
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id         Int         @id @default(autoincrement())
+  name       String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
   // tnas               TNA[]               @relation(name: "StyleToTNA")
   // fabricBookings     FabricBooking[]     @relation(name: "StyleToFabricBooking")
   // sampleDevelopments SampleDevelopment[] @relation(name: "StyleToSampleDevelopment")
   // cadDesigns         CadDesign[]         @relation(name: "StyleToCadDesign")
   // dhlTrackings       DHLTracking[]       @relation(name: "StyleToDHLTracking")
-  costSheets         CostSheet[]        @relation(name: "StyleToCostSheet")
+  costSheets CostSheet[] @relation(name: "StyleToCostSheet")
 
   @@map("styles")
 }
@@ -216,22 +214,29 @@ model CostSheet {
   id          Int      @id @default(autoincrement())
   styleId     Int
   style       Style    @relation("StyleToCostSheet", fields: [styleId], references: [id])
+  item        String
+  group       String
+  size        String
+  fabricType  String
+  gsm         String
+  color       String
+  quantity    Int
   createdById Int
   createdBy   User     @relation("UserCreatedCostSheets", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  cadRows    Json
-  fabricRows Json
-  trimsRows  Json
-  othersRows Json
+  cadRows     Json
+  fabricRows  Json
+  trimsRows   Json
+  othersRows  Json
   summaryRows Json
 
   @@map("cost_sheets")
 }
 
 // node combine-schema.js
-// npx prisma db push
 // npx prisma generate
+// npx prisma db push
 // npx prisma migrate dev --name init
 // npx prisma studio
