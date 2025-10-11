@@ -28,20 +28,29 @@ export const createEmployee = async (req, res) => {
 
 export const getEmployees = async (req, res) => {
   try {
-   
     const page = parseInt(req.query.page) || 1;
-    const limit = 20; 
-    const search = req.query.search || ''; 
+    const limit = 20;
+    const search = req.query.search || '';
     const skip = (page - 1) * limit;
 
-  
     const where = {};
     if (search) {
+      // Only add department filter if search matches a valid enum value
+      const validDepartments = [
+        "MERCHANDISING",
+        "MANAGEMENT",
+        "IT",
+        "CAD_ROOM",
+        "SAMPLE_FABRIC",
+        "SAMPLE_SEWING"
+      ];
       where.OR = [
         { customId: { contains: search } },
         { email: { contains: search } },
-        { department: { contains: search } },
         { designation: { contains: search } },
+        ...(validDepartments.includes(search)
+          ? [{ department: { equals: search } }]
+          : [])
       ];
     }
 
@@ -49,14 +58,12 @@ export const getEmployees = async (req, res) => {
       where,
       skip: skip,
       take: limit,
-      orderBy: { customId: 'asc' }, 
+      orderBy: { customId: 'desc' },
       include: { user: true },
     });
 
-    // Get total count (with search applied for accurate pagination)
     const totalEmployees = await prisma.employee.count({ where });
 
-    // Calculate pagination metadata
     const totalPages = Math.ceil(totalEmployees / limit);
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
@@ -71,7 +78,7 @@ export const getEmployees = async (req, res) => {
         limit: limit,
         hasNextPage: hasNextPage,
         hasPrevPage: hasPrevPage,
-        search: search || null, // Include search term in response for UI
+        search: search || null,
       },
     });
   } catch (error) {
